@@ -1,6 +1,6 @@
 {
   "magic": "E!vIA5L86J2I",
-  "timestamp": "2021-01-26T18:57:43.478437+00:00",
+  "timestamp": "2021-01-28T01:22:08.881674+00:00",
   "repo": "tlswg/draft-ietf-tls-esni",
   "labels": [
     {
@@ -34406,7 +34406,7 @@
     {
       "number": 376,
       "id": "MDExOlB1bGxSZXF1ZXN0NTYxNDczNDQw",
-      "title": "Move to a one-byte key identity in lieu of the config identifier hash.",
+      "title": "Move to a key identity in lieu of the config identifier hash.",
       "url": "https://github.com/tlswg/draft-ietf-tls-esni/pull/376",
       "state": "OPEN",
       "author": "chris-wood",
@@ -34415,13 +34415,13 @@
       "labels": [],
       "body": "We may want to change how we deal with GREASE (does a randomly selected byte stick out?), but this should address the issue for now. I think we can (should) treat these issues separately, and focus just on the `key_id` simplification here.\r\n\r\nCloses #375.\r\n\r\ncc @davidben, @cjpatton, @martinthomson, @ekr",
       "createdAt": "2021-01-26T01:48:24Z",
-      "updatedAt": "2021-01-26T18:57:28Z",
+      "updatedAt": "2021-01-28T01:21:34Z",
       "baseRepository": "tlswg/draft-ietf-tls-esni",
       "baseRefName": "master",
       "baseRefOid": "ee94206ba488d702a9acae30386875e14a5bb2a7",
       "headRepository": "tlswg/draft-ietf-tls-esni",
       "headRefName": "caw/config_id-to-key_id",
-      "headRefOid": "513617aebd17748874b70cf344f8298e861e332a",
+      "headRefOid": "6c67b9fad88c0257cc18fbb2db5d306111d7fc08",
       "closedAt": null,
       "mergedAt": null,
       "mergedBy": null,
@@ -34486,9 +34486,9 @@
         {
           "author": "chris-wood",
           "authorAssociation": "COLLABORATOR",
-          "body": "> Just to put a fine point on this: the spec SHOULD NOT require that implementations support trial decryption. In particular, we ought to ensure that, with high probability, configuration identifiers don't collide. A one-byte, randomly-generated identifier would make collisions inevitable, meaning that implementations will have to support trial decryption.\r\n\r\nYeah, that's reasonable. If we're going to abide by this, then the ID needs to be at least 8 bytes. I'd be fine with that assuming others are fine it. (@ekr suggested it be longer at the top anyway, so many we should just do it.)",
+          "body": "> Just to put a fine point on this: the spec SHOULD NOT require that implementations support trial decryption. In particular, we ought to ensure that, with high probability, configuration identifiers don't collide. A one-byte, randomly-generated identifier would make collisions inevitable, meaning that implementations will have to support trial decryption.\r\n\r\nYeah, that's reasonable. If we're going to abide by this, then the ID needs to be at least 8 bytes. I'd be fine with that that for now assuming others are too. (@ekr suggested it be longer at the top anyway, so many we should just do it.)",
           "createdAt": "2021-01-26T18:53:55Z",
-          "updatedAt": "2021-01-26T18:53:55Z"
+          "updatedAt": "2021-01-27T13:15:51Z"
         },
         {
           "author": "chris-wood",
@@ -34496,6 +34496,34 @@
           "body": "@cjpatton we're now at 8 bytes :-) ",
           "createdAt": "2021-01-26T18:57:28Z",
           "updatedAt": "2021-01-26T18:57:28Z"
+        },
+        {
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "> Just to put a fine point on this: the spec SHOULD NOT require that implementations support trial decryption. In particular, we ought to ensure that, with high probability, configuration identifiers don't collide. A one-byte, randomly-generated identifier would make collisions inevitable, meaning that implementations will have to support trial decryption.\r\n\r\nI don't think one-byte necessary collides. First, note that the number of configs a server needs to have at a time is relatively small. Past the config's DNS TTL, you can retire it. That means you only need O(dns_ttl / time_between_rotation) configs at once. (From #177, I think the exact value is 1 + ceil(dns_ttl / time_between_rotation). Maybe add a little bit of leeway for people using stale DNS caches, though note we have a recovery flow so you only need to cover most, not all, of stale caches.) This means we don't need to worry about that many values.\r\n\r\nAdditionally, everything here is server-allocated. Whether you're worried about a birthday bound depends on how you allocate IDs. If it's random, you have a birthday bound, yes. If you cycle through a counter, you get the full range. (Compare how QUIC and DTLS 1.3 only send the low-order bits of the epoch.) If it's random, but you check for duplicates at key issuance, you also get the full range.\r\n\r\nThe counters or duplicate checks are trickier to issue, of course, though you can implement the trial decryption as a safety net. As of #344, the trial decryption and config_id modes are already unified. Specifically, decryption failure falls back to the outer ClientHello.",
+          "createdAt": "2021-01-26T21:19:58Z",
+          "updatedAt": "2021-01-26T21:19:58Z"
+        },
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "I agree with everything you said, but want to drill in on this:\r\n\r\n> The counters or duplicate checks are trickier to issue, of course, though you can implement the trial decryption as a safety net. As of #344, the trial decryption and config_id modes are already unified. Specifically, decryption failure falls back to the outer ClientHello.\r\n\r\nThis seems to be key. I agree that the fallback case is clear and well understood, though one consideration is the case wherein a client attempts GREASE to a server that actually supports ECH. The probability of collision in that scenario is high, and if that scenario happens often, then decryption failure and fallback to the outer CH happens quite regularly. Bumping the length back to eight bytes removes the collision probability for that scenario, I think. \r\n\r\nI'd like to propose we treat the two problems here separately. That is, let's first see if we can land the key ID change (from a client-computed hash to a server-selected ID). And then let's see if we can safely make that ID smaller in size. I don't think we need to address both here. Would that work?",
+          "createdAt": "2021-01-26T22:46:03Z",
+          "updatedAt": "2021-01-26T22:46:03Z"
+        },
+        {
+          "author": "martinthomson",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "I think that the only thing that pushes toward a larger identifier space for me is the risk of grease colliding with an active key.  I agree with David, that your likely number of keys is ~2 (I might go as high as 4 if the server is in an extended period of offering two types of KEM).  With a one-byte identifier, that's only 1/64 greased sessions hitting the expensive decryption code.\r\n\r\nFlexibility here seems appealing, but I'm not sure that this is a place that needs it.  Operationally, this seems very much dependent on centralization, so I'm not buying any story based on loose coordination.  I also note that very small spaces reduce the options servers have for targeted tracking through the use of keys (though it is impossible to eliminate tracking, small spaces make the cost higher to operate tracking at any reasonable scale).\r\n\r\nThat is why I was motivated to go as low as 1 byte.  If you prefer a much lower probability of having to deal with failed decryption in response to greasing, then 2 bytes gets that down to lower than your likely failed connection rate at 1/16k.",
+          "createdAt": "2021-01-27T05:40:18Z",
+          "updatedAt": "2021-01-27T05:43:42Z"
+        },
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "> With a one-byte identifier, that's only 1/64 greased sessions hitting the expensive decryption code.\r\n\r\nIndeed, this is why I propose we separate these issues. Specifically, let's use this PR to land the server-chosen key ID, and then make it smaller (as needed) in a followup change. (Personally, I'm fine with one, two, or four bytes here, as I think the decryption failure case is unavoidable.) I'll file an issue for the size of the ID in a bit.\r\n\r\n@davidben, @martinthomson, @ekr, @cjpatton: what say you? :-)",
+          "createdAt": "2021-01-27T13:06:38Z",
+          "updatedAt": "2021-01-27T14:07:39Z"
         }
       ],
       "reviews": [
@@ -34515,25 +34543,25 @@
               "originalPosition": 5,
               "body": "Why this name change?",
               "createdAt": "2021-01-26T17:33:09Z",
-              "updatedAt": "2021-01-26T18:57:07Z"
+              "updatedAt": "2021-01-28T01:21:34Z"
             },
             {
               "originalPosition": 14,
               "body": "IMO it's a bit tidier to have `cipher_suites` immediately precede the `kem_id`.",
               "createdAt": "2021-01-26T17:37:01Z",
-              "updatedAt": "2021-01-26T18:57:07Z"
+              "updatedAt": "2021-01-28T01:21:34Z"
             },
             {
               "originalPosition": 163,
               "body": "Whether this sticks out depends on how the real `key_id` is chosen. If chosen randomly then we're golden. However the chance of two randomly chosen key ids colliding is high.",
               "createdAt": "2021-01-26T17:48:58Z",
-              "updatedAt": "2021-01-26T18:57:07Z"
+              "updatedAt": "2021-01-28T01:21:34Z"
             },
             {
               "originalPosition": 53,
               "body": "Why `key_id` instead of `config_id`? The new name sounds as if it should be possible to have a single key used by multiple configs, but what we actually want is a handle with which the server can resolve which config to use.",
               "createdAt": "2021-01-26T17:51:14Z",
-              "updatedAt": "2021-01-26T18:57:07Z"
+              "updatedAt": "2021-01-28T01:21:34Z"
             }
           ]
         },
@@ -34553,7 +34581,7 @@
               "originalPosition": 14,
               "body": "I don't have a strong feeling here. I think the only important bit is that the kem_id precedes the public key.",
               "createdAt": "2021-01-26T17:56:39Z",
-              "updatedAt": "2021-01-26T18:57:07Z"
+              "updatedAt": "2021-01-28T01:21:34Z"
             }
           ]
         },
@@ -34573,7 +34601,7 @@
               "originalPosition": 5,
               "body": "It seems to capture the intent of the struct better.",
               "createdAt": "2021-01-26T17:56:59Z",
-              "updatedAt": "2021-01-26T18:57:07Z"
+              "updatedAt": "2021-01-28T01:21:34Z"
             }
           ]
         },
@@ -34593,7 +34621,304 @@
               "originalPosition": 53,
               "body": "Since the identifier corresponds primarily to the HPKE public key, and not the public name et al. (If we lifted the key_id *out* of the HpkeKeyConfig, I think config_id would be better.)",
               "createdAt": "2021-01-26T17:58:24Z",
-              "updatedAt": "2021-01-26T18:57:07Z"
+              "updatedAt": "2021-01-28T01:21:34Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTc2Njg3NTk5",
+          "commit": {
+            "abbreviatedOid": "513617a"
+          },
+          "author": "cjpatton",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "COMMENTED",
+          "body": "I believe that `key_id` should be a U8-prefixed string, just like `config_id` was. The spec currently allows for implementations to send an empty `ClientECH.config_id`, e.g., in \"local discovery mode\" (https://tools.ietf.org/html/draft-ietf-tls-esni-09#section-7.1).",
+          "createdAt": "2021-01-26T19:27:01Z",
+          "updatedAt": "2021-01-26T22:47:16Z",
+          "comments": [
+            {
+              "originalPosition": 53,
+              "body": "SHOULD instead of MAY?",
+              "createdAt": "2021-01-26T19:28:03Z",
+              "updatedAt": "2021-01-28T01:21:34Z"
+            },
+            {
+              "originalPosition": 14,
+              "body": "My thinking is that we should minimize changes to the ECHConfig structure, since the less changes we make the easier it will be to support multiple versions. Concretely, I would revert changes that re-order parameter unless there's a compelling reason to reorder them.",
+              "createdAt": "2021-01-26T19:29:31Z",
+              "updatedAt": "2021-01-28T01:21:34Z"
+            },
+            {
+              "originalPosition": 53,
+              "body": "Perhaps another way to resolve this would be to change `key_id` to simply `id`. The `key_` prefix seems a bit redundant.",
+              "createdAt": "2021-01-26T22:32:44Z",
+              "updatedAt": "2021-01-28T01:21:34Z"
+            },
+            {
+              "originalPosition": 154,
+              "body": "Like we did for config_id, we could avoid re-transmitting the key_id by changing its type to a U8-prefixed string. IIRC there were upsides to not re-transmitting config_id.",
+              "createdAt": "2021-01-26T22:42:21Z",
+              "updatedAt": "2021-01-28T01:21:34Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTc2OTk4MzQ2",
+          "commit": {
+            "abbreviatedOid": "513617a"
+          },
+          "author": "martinthomson",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-01-27T05:38:49Z",
+          "updatedAt": "2021-01-27T05:38:49Z",
+          "comments": [
+            {
+              "originalPosition": 14,
+              "body": "Any change is a change and they are all equally not-free, so minimizing changes is not a goal I would worry about.  In terms of ordering, I prefer what @chris-wood proposed.",
+              "createdAt": "2021-01-27T05:38:49Z",
+              "updatedAt": "2021-01-28T01:21:34Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTc3MzE2NzE5",
+          "commit": {
+            "abbreviatedOid": "513617a"
+          },
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-01-27T13:09:27Z",
+          "updatedAt": "2021-01-27T13:09:28Z",
+          "comments": [
+            {
+              "originalPosition": 53,
+              "body": "We could do that, but then ClientECH would either have an inconsistently named field (key_id) or an ambiguously named field (id). I'd prefer to keep key_id, but in the interest of minimizing changes in this PR, I'll revert to config_id.",
+              "createdAt": "2021-01-27T13:09:27Z",
+              "updatedAt": "2021-01-28T01:21:34Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTc3MzIzNDg5",
+          "commit": {
+            "abbreviatedOid": "2aa42e0"
+          },
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-01-27T13:17:26Z",
+          "updatedAt": "2021-01-27T13:17:26Z",
+          "comments": [
+            {
+              "originalPosition": 154,
+              "body": "One upside is that the server doesn't have to check them for equality against HRR, but there's already a check for the cipher_suite field, so this seems like not a stretch.",
+              "createdAt": "2021-01-27T13:17:26Z",
+              "updatedAt": "2021-01-28T01:21:34Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTc3MzI1Njc4",
+          "commit": {
+            "abbreviatedOid": "2aa42e0"
+          },
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-01-27T13:19:57Z",
+          "updatedAt": "2021-01-27T13:19:57Z",
+          "comments": [
+            {
+              "originalPosition": 53,
+              "body": "That would align this with GREASE, which seems like a fine thing to do. (That is, in both GREASE and optional configs, the ID would be random.)",
+              "createdAt": "2021-01-27T13:19:57Z",
+              "updatedAt": "2021-01-28T01:21:34Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTc3MzY5NDQz",
+          "commit": {
+            "abbreviatedOid": "766001f"
+          },
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-01-27T14:06:41Z",
+          "updatedAt": "2021-01-27T14:06:42Z",
+          "comments": [
+            {
+              "originalPosition": 154,
+              "body": "I reverted this change, too. It's now length prefixed so the HRR case is empty. We can discuss the size of the ID in a separate issue.",
+              "createdAt": "2021-01-27T14:06:42Z",
+              "updatedAt": "2021-01-28T01:21:34Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTc3MzcyMTg2",
+          "commit": {
+            "abbreviatedOid": "766001f"
+          },
+          "author": "ekr",
+          "authorAssociation": "COLLABORATOR",
+          "state": "APPROVED",
+          "body": "LGTM but I would split out the technical change from the refactor of the structures.",
+          "createdAt": "2021-01-27T14:09:21Z",
+          "updatedAt": "2021-01-27T14:10:48Z",
+          "comments": [
+            {
+              "originalPosition": 146,
+              "body": "So when is empty valid?",
+              "createdAt": "2021-01-27T14:09:21Z",
+              "updatedAt": "2021-01-28T01:21:34Z"
+            },
+            {
+              "originalPosition": 96,
+              "body": "```suggestion\r\n: The ECHConfigContents.key_config.config_id for the chosen ECHConfig.\r\n```",
+              "createdAt": "2021-01-27T14:10:27Z",
+              "updatedAt": "2021-01-28T01:21:34Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTc3NTQ0OTQ0",
+          "commit": {
+            "abbreviatedOid": "766001f"
+          },
+          "author": "cjpatton",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-01-27T16:47:45Z",
+          "updatedAt": "2021-01-27T16:47:46Z",
+          "comments": [
+            {
+              "originalPosition": 89,
+              "body": "Why change the wire format of the ECH extension? We might end up changing the type of `config_id` anyway, in which case the point is moot. However, for now, I think we should keep the extension parameters in the same order.",
+              "createdAt": "2021-01-27T16:47:45Z",
+              "updatedAt": "2021-01-28T01:21:34Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTc3NTU2OTE3",
+          "commit": {
+            "abbreviatedOid": "3fa9d47"
+          },
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-01-27T16:59:35Z",
+          "updatedAt": "2021-01-27T16:59:35Z",
+          "comments": [
+            {
+              "originalPosition": 89,
+              "body": "Reverted!",
+              "createdAt": "2021-01-27T16:59:35Z",
+              "updatedAt": "2021-01-28T01:21:34Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTc3NTU3NjAz",
+          "commit": {
+            "abbreviatedOid": "3fa9d47"
+          },
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-01-27T17:00:14Z",
+          "updatedAt": "2021-01-27T17:00:15Z",
+          "comments": [
+            {
+              "originalPosition": 146,
+              "body": "It's always valid, I think. The server will just have to do trial decryption.",
+              "createdAt": "2021-01-27T17:00:14Z",
+              "updatedAt": "2021-01-28T01:21:34Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTc3ODgwMTY3",
+          "commit": {
+            "abbreviatedOid": "3fa9d47"
+          },
+          "author": "martinthomson",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-01-28T00:06:53Z",
+          "updatedAt": "2021-01-28T00:06:53Z",
+          "comments": [
+            {
+              "originalPosition": 146,
+              "body": "An empty identifier is just one possible value in the space.  It doesn't mean that other configurations aren't identified by non-empty identifiers.",
+              "createdAt": "2021-01-28T00:06:53Z",
+              "updatedAt": "2021-01-28T01:21:34Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTc3ODgwOTEy",
+          "commit": {
+            "abbreviatedOid": "3fa9d47"
+          },
+          "author": "martinthomson",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "APPROVED",
+          "body": "Happy to have the identifier discussion separately.  It is unfortunately not important or clear enough to lead to easy agreement.  I can live with any outcome.",
+          "createdAt": "2021-01-28T00:08:40Z",
+          "updatedAt": "2021-01-28T00:08:40Z",
+          "comments": []
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTc3OTEwNTY2",
+          "commit": {
+            "abbreviatedOid": "3fa9d47"
+          },
+          "author": "cjpatton",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-01-28T01:13:01Z",
+          "updatedAt": "2021-01-28T01:13:01Z",
+          "comments": [
+            {
+              "originalPosition": 189,
+              "body": "I believe this change needs to be reverted as well. From {#client-hrr}:\r\n\r\n> The client then modifies the \"encrypted_client_hello\" extension in ClientHelloOuter as follows:\r\n> \r\n>   - **config_id is replaced with the empty string.**\r\n>   - cipher_suite is unchanged and contains the client's chosen HPKE cipher suite.\r\n>   - enc is replaced with the empty string.\r\n>   - payload is replaced with the value computed above.\r\n",
+              "createdAt": "2021-01-28T01:13:01Z",
+              "updatedAt": "2021-01-28T01:21:34Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTc3OTEyNzQw",
+          "commit": {
+            "abbreviatedOid": "24aebee"
+          },
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-01-28T01:18:17Z",
+          "updatedAt": "2021-01-28T01:18:17Z",
+          "comments": [
+            {
+              "originalPosition": 189,
+              "body": "Fixed.",
+              "createdAt": "2021-01-28T01:18:17Z",
+              "updatedAt": "2021-01-28T01:21:34Z"
             }
           ]
         }
