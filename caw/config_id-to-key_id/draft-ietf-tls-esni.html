@@ -1519,7 +1519,7 @@ The payload MUST have the following structure:<a href="#section-5-3" class="pilc
 <pre>
     struct {
        HpkeSymmetricCipherSuite cipher_suite;
-       opaque config_id&lt;0..255&gt;
+       opaque config_id&lt;0..255&gt;;
        opaque enc&lt;1..2^16-1&gt;;
        opaque payload&lt;1..2^16-1&gt;;
     } ClientECH;
