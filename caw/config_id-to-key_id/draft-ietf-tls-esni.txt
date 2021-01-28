@@ -5,11 +5,11 @@
 tls                                                          E. Rescorla
 Internet-Draft                                                RTFM, Inc.
 Intended status: Standards Track                                  K. Oku
-Expires: 30 July 2021                                             Fastly
+Expires: 1 August 2021                                            Fastly
                                                              N. Sullivan
                                                                C.A. Wood
                                                               Cloudflare
-                                                         26 January 2021
+                                                         28 January 2021
 
 
                        TLS Encrypted Client Hello
@@ -35,7 +35,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 30 July 2021.
+   This Internet-Draft will expire on 1 August 2021.
 
 Copyright Notice
 
@@ -294,7 +294,7 @@ Table of Contents
        } HpkeSymmetricCipherSuite;
 
        struct {
-           uint8 key_id[8];
+           opaque config_id<0..255>;
            HpkeKemId kem_id;
            HpkePublicKey public_key;
            HpkeSymmetricCipherSuite cipher_suites<4..2^16-4>;
@@ -350,8 +350,8 @@ Table of Contents
 
    The "HpkeKeyConfig" structure contains the following fields:
 
-   key_id  An eight byte identifier for the given HPKE public key.  This
-      is used by clients to indicate the key used for ClientHello
+   config_id  An opaque identifier for the given HPKE key configuration.
+      This is used by clients to indicate the key used for ClientHello
       encryption.
 
    kem_id  The HPKE KEM identifier corresponding to "public_key".
@@ -405,14 +405,14 @@ Table of Contents
    ClientHelloOuter.  The payload MUST have the following structure:
 
        struct {
-          uint8 key_id[8];
-          ECHCipherSuite cipher_suite;
+          HpkeSymmetricCipherSuite cipher_suite;
+          opaque config_id<0..255>
           opaque enc<1..2^16-1>;
           opaque payload<1..2^16-1>;
        } ClientECH;
 
-   key_id  The eight byte identifier matching
-      "ECHConfigContents.key_config.key_id".
+   config_id  The ECHConfigContents.key_config.config_id for the chosen
+      ECHConfig.
 
    cipher_suite  The cipher suite used to encrypt ClientHelloInner.
       This MUST match a value provided in the corresponding
@@ -495,15 +495,15 @@ Table of Contents
    and passing it in as the associated data for HPKE sealing and opening
    operations.  ClientHelloOuterAAD has the following structure:
 
-       struct {
-          uint8 key_id[8];               // ClientECH.key_id
-          ECHCipherSuite cipher_suite;   // ClientECH.cipher_suite
-          opaque enc<1..2^16-1>;         // ClientECH.enc
-          opaque outer_hello<1..2^24-1>;
-       } ClientHelloOuterAAD;
+      struct {
+         HpkeSymmetricCipherSuite cipher_suite;
+         opaque config_id<0..255>;
+         opaque enc<1..2^16-1>;
+         opaque outer_hello<1..2^24-1>;
+      } ClientHelloOuterAAD;
 
    The first three parameters are equal to, respectively, the
-   "ClientECH.key_id", "ClientECH.cipher_suite", and "ClientECH.enc"
+   "ClientECH.cipher_suite", "ClientECH.config_id", and "ClientECH.enc"
    fields of the payload of the "encrypted_client_hello" extension.  The
    last parameter, "outer_hello", is computed by serializing
    ClientHelloOuter with the "encrypted_client_hello" extension removed.
@@ -633,7 +633,8 @@ Table of Contents
    The value of the "encrypted_client_hello" extension in the
    ClientHelloOuter is a "ClientECH" with the following values:
 
-   *  "key_id", the identifier of the chosen ECHConfig structure;
+   *  "config_id", the identifier corresponding to the chosen ECHConfig
+      structure;
 
    *  "cipher_suite", the client's chosen cipher suite;
 
@@ -642,10 +643,10 @@ Table of Contents
    *  "payload", as computed above.
 
    If optional configuration identifiers (see Section 10.4)) are used,
-   "key_id" MAY be set to a randomly generated eight bytes.  Unless
-   specified by the application using (D)TLS or externally configured on
-   both sides, implementations MUST compute the field as specified in
-   Section 5.
+   "config_id" SHOULD be set to a randomly generated eight bytes.
+   Unless specified by the application using (D)TLS or externally
+   configured on both sides, implementations MUST compute the field as
+   specified in Section 5.
 
 6.1.1.  ClientHelloInner Indication Extension
 
@@ -850,8 +851,7 @@ Table of Contents
    The client then modifies the "encrypted_client_hello" extension in
    ClientHelloOuter as follows:
 
-   *  "key_id" is unchanged and contains the client's chosen HPKE key
-      identifier.
+   *  "config_id" is replaced with the empty string.
 
    *  "cipher_suite" is unchanged and contains the client's chosen HPKE
       cipher suite.
@@ -872,12 +872,12 @@ Table of Contents
    [RFC8701] "encrypted_client_hello" extension in the first ClientHello
    as follows:
 
-   *  Set the "key_id" field to a random eight byte string.
+   *  Set the "config_id" field to a random eight byte string.
 
-   *  Set the "cipher_suite" field to a supported ECHCipherSuite.  The
-      selection SHOULD vary to exercise all supported configurations,
-      but MAY be held constant for successive connections to the same
-      server in the same session.
+   *  Set the "cipher_suite" field to a supported
+      HpkeSymmetricCipherSuite.  The selection SHOULD vary to exercise
+      all supported configurations, but MAY be held constant for
+      successive connections to the same server in the same session.
 
    *  Set the "enc" field to a randomly-generated valid encapsulated
       public key output by the HPKE KEM.
@@ -947,16 +947,16 @@ Table of Contents
    First, the server collects a set of candidate ECHConfigs.  This set
    is determined by one of the two following methods:
 
-   1.  Compare ClientECH.key_id against identifiers of known ECHConfigs
-       and select the ones that match, if any, as candidates.
+   1.  Compare ClientECH.config_id against identifiers of known
+       ECHConfigs and select the ones that match, if any, as candidates.
 
    2.  Collect all known ECHConfigs as candidates, with trial decryption
        below determining the final selection.
 
    Some uses of ECH, such as local discovery mode, may randomize the
-   ClientECH.key_id since it can be used as a tracking vector.  In such
-   cases, the second method should be used for matching ClientECH to
-   known ECHConfig.  See Section 10.4.  Unless specified by the
+   ClientECH.config_id since it can be used as a tracking vector.  In
+   such cases, the second method should be used for matching ClientECH
+   to known ECHConfig.  See Section 10.4.  Unless specified by the
    application using (D)TLS or externally configured on both sides,
    implementations MUST use the first method.
 
@@ -1020,8 +1020,8 @@ Table of Contents
    ClientHelloOuter also contains the "encrypted_client_hello"
    extension.  If not, it MUST abort the handshake with a
    "missing_extension" alert.  Otherwise, it checks that
-   ClientECH.cipher_suite and ClientECH.key_id are unchanged, and that
-   ClientECH.enc is empty.  If not, it MUST abort the handshake with an
+   ClientECH.cipher_suite is unchanged, and that ClientECH.config_id and
+   ClientECH.enc are empty.  If not, it MUST abort the handshake with an
    "illegal_parameter" alert.
 
    Finally, it decrypts the new ClientECH.payload as a second message
@@ -1193,12 +1193,12 @@ Table of Contents
    maximize the size of the anonymity set where possible.  This means
    client-facing servers should use the same ECHConfig for as many hosts
    as possible.  An attacker can distinguish two hosts that have
-   different ECHConfig values based on the ClientECH.key_id value.  This
-   also means public information in a TLS handshake is also consistent
-   across hosts.  For example, if a client-facing server services many
-   backend origin hosts, only one of which supports some cipher suite,
-   it may be possible to identify that host based on the contents of
-   unencrypted handshake messages.
+   different ECHConfig values based on the ClientECH.config_id value.
+   This also means public information in a TLS handshake is also
+   consistent across hosts.  For example, if a client-facing server
+   services many backend origin hosts, only one of which supports some
+   cipher suite, it may be possible to identify that host based on the
+   contents of unencrypted handshake messages.
 
    Beyond these primary security and privacy goals, ECH also aims to
    hide, to some extent, (a) whether or not a specific server supports
@@ -1269,9 +1269,9 @@ Table of Contents
    clients and client-facing servers do not want to reveal information
    about the client-facing server in the "encrypted_client_hello"
    extension.  In such settings, clients send a randomly generated
-   key_id in the ClientECH.  Servers in these settings must perform
+   config_id in the ClientECH.  Servers in these settings must perform
    trial decryption since they cannot identify the client's chosen ECH
-   key using the key_id value.  As a result, support for optional
+   key using the config_id value.  As a result, support for optional
    configuration identifiers may exacerbate DoS attacks.  Specifically,
    an adversary may send malicious ClientHello messages, i.e., those
    which will not decrypt with any known ECH key, in order to force
