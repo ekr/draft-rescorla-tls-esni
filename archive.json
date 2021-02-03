@@ -1,6 +1,6 @@
 {
   "magic": "E!vIA5L86J2I",
-  "timestamp": "2021-01-28T01:22:08.881674+00:00",
+  "timestamp": "2021-02-03T16:50:50.101216+00:00",
   "repo": "tlswg/draft-ietf-tls-esni",
   "labels": [
     {
@@ -8568,7 +8568,7 @@
       "labels": [],
       "body": "After very useful discussion with many folks, it seems now is the time to remove config_id. There are a couple reasons to do this:\r\n\r\n- Servers need to know the correct hash function to use when computing the ID, and possibly need to compute multiple IDs for a given public key (since a config can have multiple hash-based KDFs), which is somewhat annoying and redundant.\r\n- The entire ECHConfig is already authenticated, so using a hash to prove that the client made a determination based on the correct config contents is unnecessary.\r\n- Servers will likely only ever have a small handful of keys in motion at any point in time, so anything more than a couple of bits to identify one of said keys is excessive.\r\n- ... there are probably more.\r\n\r\nThe original design [had a server-chosen label, but we removed it](https://github.com/tlswg/draft-ietf-tls-esni/pull/43). (Oops!) It seems we're now in a better position to bring this back, but with some simplifications. ",
       "createdAt": "2021-01-26T01:46:27Z",
-      "updatedAt": "2021-01-26T03:02:46Z",
+      "updatedAt": "2021-01-28T17:20:43Z",
       "closedAt": null,
       "comments": [
         {
@@ -8605,6 +8605,20 @@
           "body": "\n\nOn 26/01/2021 02:38, ekr wrote:\n> \n> Fix what? A few of us had a private conversation about some ideas \n\nI'm guessing that was a private discussion amongst what could\nwell be described as the usual suspects or an old-boys club\n(or are a few of you \"many folks?\"). Correct me if I'm wrong\nbut that had zero visibility and zero traceability and zero\naccountability for anyone who isn't one of those old boys.\n\nAnd yet we're zapping a field in a PDU from what was declared\nas an \"implementation draft\" a day or so after one major\ndeployment declared they had an interop target. To me, that\nsmells of disrespect for outsiders tbh.\n\nYou can probably guess what I think about that state of\naffairs:-)\n\n> and\n> came to the conclusion that it would be better to replace the hash\n> with a key_id. Then Chris and Martin brought it to a Github issue.\n> This is precisely in line with the WG consensus to use Github issue\n> discussion mode, as documented in 8874 S 5.3.\nI don't buy that tbh. Chris' mail was presented as a\nconclusion, from a wg-chair following a private discussion\nthat for sure excluded some implementers. (Me being one,\nalbeit a not very good one:-)\n\nAnd you yourself are an ex WG-chair so I'd guess you ought\nalso care about exclusivity here. What gain is there from\nthat kind of behaviour? I don't see it myself.\n\nIMO, there is no need nor benefit from being so exclusive\nwrt this spec, yet that is what is happening and has been\nfor a few years. I'd encourage those of you who may be\n\"old-boys\" to consider whether or not that is really the\nbest way to proceed. IMO - it is not, you lose way more than\nyou might think you gain, almost all the time.\n\nCheers,\nS.\n\nPS: I don't disagree with the outcome, though have opinions\non what -10 might contain. I do very much dislike the awful\nprocess, which is my point here.\n\n\n",
           "createdAt": "2021-01-26T03:02:46Z",
           "updatedAt": "2021-01-26T03:02:46Z"
+        },
+        {
+          "author": "seanturner",
+          "authorAssociation": "NONE",
+          "body": "@sftcd I would completely agree with you had the proposed PR been merged and the associated issue been closed. That has not happened. Further, it appears that you might be reading a bit more into Chris' issue summary than is really there. He is not acting in his WG chair capacity here because he is an author; I know he knows that and I really hope you can give him the benefit of the doubt here so that we do not have to suffer the \"no WG chair hat on\" in every message/post.\r\n\r\nThe process, as I see it, is pretty darn near normal. Somebody files an issue and optionally (but preferably) files a PR to address said issue. Discussion ensues amd if substantive it's taken to the list. The PR may or may not be modified based on that discussion. If consensus is reached, the PR is merged and the issue is closed.\r\n\r\nWe are at the discussion point. Can we do that now?",
+          "createdAt": "2021-01-28T16:56:39Z",
+          "updatedAt": "2021-01-28T16:56:39Z"
+        },
+        {
+          "author": "sftcd",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "\n\nOn 28/01/2021 16:56, Sean Turner wrote:\n> @sftcd I would completely agree with you had the proposed PR been\n> merged and the associated issue been closed. That has not happened.\n> Further, it appears that you might be reading a bit more into Chris'\n> issue summary than is really there. He is not acting in his WG chair\n> capacity here because he is an author; I know he knows that and I\n> really hope you can give him the benefit of the doubt here so that we\n> do not have to suffer the \"no WG chair hat on\" in every\n> message/post.\n\nPerhaps it'd be better to not start a mail with \"After very\nuseful discussion with many folks, it seems now is the time to remove \nconfig_id.\" in cases where that discussion was\npurely private? I can understand it being hard to keep track\nwith the various tools, but for me, that still reads as a\ndecision being announced even if that was not the intent.\n\nSorry for being over-sensitive to this but IMO there is a\nhistory and ongoing tendency with this spec for a subset of\npeople to act as if they and not the IETF/WG have change\ncontrol. I fully accept that they are not deliberately\naiming to avoid having to garner WG consensus but consider\nthat ongoing instances of carelessness such as the above\ndemonstrate that there is an insider/outsider thing going\non here.\n\nS.\n\n> \n> The process, as I see it, is pretty darn near normal. Somebody files\n> an issue and optionally (but preferably) files a PR to address said\n> issue. Discussion ensues amd if substantive it's taken to the list.\n> The PR may or may not be modified based on that discussion. If\n> consensus is reached, the PR is merged and the issue is closed.\n> \n> We are at the discussion point. Can we do that now?\n> \n",
+          "createdAt": "2021-01-28T17:20:43Z",
+          "updatedAt": "2021-01-28T17:20:43Z"
         }
       ]
     }
@@ -34415,13 +34429,13 @@
       "labels": [],
       "body": "We may want to change how we deal with GREASE (does a randomly selected byte stick out?), but this should address the issue for now. I think we can (should) treat these issues separately, and focus just on the `key_id` simplification here.\r\n\r\nCloses #375.\r\n\r\ncc @davidben, @cjpatton, @martinthomson, @ekr",
       "createdAt": "2021-01-26T01:48:24Z",
-      "updatedAt": "2021-01-28T01:21:34Z",
+      "updatedAt": "2021-01-29T18:28:51Z",
       "baseRepository": "tlswg/draft-ietf-tls-esni",
       "baseRefName": "master",
       "baseRefOid": "ee94206ba488d702a9acae30386875e14a5bb2a7",
       "headRepository": "tlswg/draft-ietf-tls-esni",
       "headRefName": "caw/config_id-to-key_id",
-      "headRefOid": "6c67b9fad88c0257cc18fbb2db5d306111d7fc08",
+      "headRefOid": "2d2e514aa4a63c7e02a30a1295b732a7b9527f96",
       "closedAt": null,
       "mergedAt": null,
       "mergedBy": null,
@@ -34524,6 +34538,13 @@
           "body": "> With a one-byte identifier, that's only 1/64 greased sessions hitting the expensive decryption code.\r\n\r\nIndeed, this is why I propose we separate these issues. Specifically, let's use this PR to land the server-chosen key ID, and then make it smaller (as needed) in a followup change. (Personally, I'm fine with one, two, or four bytes here, as I think the decryption failure case is unavoidable.) I'll file an issue for the size of the ID in a bit.\r\n\r\n@davidben, @martinthomson, @ekr, @cjpatton: what say you? :-)",
           "createdAt": "2021-01-27T13:06:38Z",
           "updatedAt": "2021-01-27T14:07:39Z"
+        },
+        {
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "> Happy to have the identifier discussion separately. It is unfortunately not important or clear enough to lead to easy agreement. I can live with any outcome.\r\n\r\nDitto.",
+          "createdAt": "2021-01-29T18:28:51Z",
+          "updatedAt": "2021-01-29T18:28:51Z"
         }
       ],
       "reviews": [
@@ -34543,25 +34564,25 @@
               "originalPosition": 5,
               "body": "Why this name change?",
               "createdAt": "2021-01-26T17:33:09Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             },
             {
               "originalPosition": 14,
               "body": "IMO it's a bit tidier to have `cipher_suites` immediately precede the `kem_id`.",
               "createdAt": "2021-01-26T17:37:01Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             },
             {
               "originalPosition": 163,
               "body": "Whether this sticks out depends on how the real `key_id` is chosen. If chosen randomly then we're golden. However the chance of two randomly chosen key ids colliding is high.",
               "createdAt": "2021-01-26T17:48:58Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             },
             {
               "originalPosition": 53,
               "body": "Why `key_id` instead of `config_id`? The new name sounds as if it should be possible to have a single key used by multiple configs, but what we actually want is a handle with which the server can resolve which config to use.",
               "createdAt": "2021-01-26T17:51:14Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             }
           ]
         },
@@ -34581,7 +34602,7 @@
               "originalPosition": 14,
               "body": "I don't have a strong feeling here. I think the only important bit is that the kem_id precedes the public key.",
               "createdAt": "2021-01-26T17:56:39Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             }
           ]
         },
@@ -34601,7 +34622,7 @@
               "originalPosition": 5,
               "body": "It seems to capture the intent of the struct better.",
               "createdAt": "2021-01-26T17:56:59Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             }
           ]
         },
@@ -34621,7 +34642,7 @@
               "originalPosition": 53,
               "body": "Since the identifier corresponds primarily to the HPKE public key, and not the public name et al. (If we lifted the key_id *out* of the HpkeKeyConfig, I think config_id would be better.)",
               "createdAt": "2021-01-26T17:58:24Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             }
           ]
         },
@@ -34641,25 +34662,25 @@
               "originalPosition": 53,
               "body": "SHOULD instead of MAY?",
               "createdAt": "2021-01-26T19:28:03Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             },
             {
               "originalPosition": 14,
               "body": "My thinking is that we should minimize changes to the ECHConfig structure, since the less changes we make the easier it will be to support multiple versions. Concretely, I would revert changes that re-order parameter unless there's a compelling reason to reorder them.",
               "createdAt": "2021-01-26T19:29:31Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             },
             {
               "originalPosition": 53,
               "body": "Perhaps another way to resolve this would be to change `key_id` to simply `id`. The `key_` prefix seems a bit redundant.",
               "createdAt": "2021-01-26T22:32:44Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             },
             {
               "originalPosition": 154,
               "body": "Like we did for config_id, we could avoid re-transmitting the key_id by changing its type to a U8-prefixed string. IIRC there were upsides to not re-transmitting config_id.",
               "createdAt": "2021-01-26T22:42:21Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             }
           ]
         },
@@ -34679,7 +34700,7 @@
               "originalPosition": 14,
               "body": "Any change is a change and they are all equally not-free, so minimizing changes is not a goal I would worry about.  In terms of ordering, I prefer what @chris-wood proposed.",
               "createdAt": "2021-01-27T05:38:49Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             }
           ]
         },
@@ -34699,7 +34720,7 @@
               "originalPosition": 53,
               "body": "We could do that, but then ClientECH would either have an inconsistently named field (key_id) or an ambiguously named field (id). I'd prefer to keep key_id, but in the interest of minimizing changes in this PR, I'll revert to config_id.",
               "createdAt": "2021-01-27T13:09:27Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             }
           ]
         },
@@ -34719,7 +34740,7 @@
               "originalPosition": 154,
               "body": "One upside is that the server doesn't have to check them for equality against HRR, but there's already a check for the cipher_suite field, so this seems like not a stretch.",
               "createdAt": "2021-01-27T13:17:26Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             }
           ]
         },
@@ -34739,7 +34760,7 @@
               "originalPosition": 53,
               "body": "That would align this with GREASE, which seems like a fine thing to do. (That is, in both GREASE and optional configs, the ID would be random.)",
               "createdAt": "2021-01-27T13:19:57Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             }
           ]
         },
@@ -34759,7 +34780,7 @@
               "originalPosition": 154,
               "body": "I reverted this change, too. It's now length prefixed so the HRR case is empty. We can discuss the size of the ID in a separate issue.",
               "createdAt": "2021-01-27T14:06:42Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             }
           ]
         },
@@ -34779,13 +34800,13 @@
               "originalPosition": 146,
               "body": "So when is empty valid?",
               "createdAt": "2021-01-27T14:09:21Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             },
             {
               "originalPosition": 96,
               "body": "```suggestion\r\n: The ECHConfigContents.key_config.config_id for the chosen ECHConfig.\r\n```",
               "createdAt": "2021-01-27T14:10:27Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             }
           ]
         },
@@ -34805,7 +34826,7 @@
               "originalPosition": 89,
               "body": "Why change the wire format of the ECH extension? We might end up changing the type of `config_id` anyway, in which case the point is moot. However, for now, I think we should keep the extension parameters in the same order.",
               "createdAt": "2021-01-27T16:47:45Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             }
           ]
         },
@@ -34825,7 +34846,7 @@
               "originalPosition": 89,
               "body": "Reverted!",
               "createdAt": "2021-01-27T16:59:35Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             }
           ]
         },
@@ -34845,7 +34866,7 @@
               "originalPosition": 146,
               "body": "It's always valid, I think. The server will just have to do trial decryption.",
               "createdAt": "2021-01-27T17:00:14Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             }
           ]
         },
@@ -34865,7 +34886,7 @@
               "originalPosition": 146,
               "body": "An empty identifier is just one possible value in the space.  It doesn't mean that other configurations aren't identified by non-empty identifiers.",
               "createdAt": "2021-01-28T00:06:53Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             }
           ]
         },
@@ -34898,7 +34919,7 @@
               "originalPosition": 189,
               "body": "I believe this change needs to be reverted as well. From {#client-hrr}:\r\n\r\n> The client then modifies the \"encrypted_client_hello\" extension in ClientHelloOuter as follows:\r\n> \r\n>   - **config_id is replaced with the empty string.**\r\n>   - cipher_suite is unchanged and contains the client's chosen HPKE cipher suite.\r\n>   - enc is replaced with the empty string.\r\n>   - payload is replaced with the value computed above.\r\n",
               "createdAt": "2021-01-28T01:13:01Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             }
           ]
         },
@@ -34918,9 +34939,151 @@
               "originalPosition": 189,
               "body": "Fixed.",
               "createdAt": "2021-01-28T01:18:17Z",
-              "updatedAt": "2021-01-28T01:21:34Z"
+              "updatedAt": "2021-01-28T01:33:24Z"
             }
           ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTc3OTE2OTE1",
+          "commit": {
+            "abbreviatedOid": "6c67b9f"
+          },
+          "author": "cjpatton",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "APPROVED",
+          "body": "One little nit then -> LGTM.",
+          "createdAt": "2021-01-28T01:29:20Z",
+          "updatedAt": "2021-01-28T01:31:05Z",
+          "comments": [
+            {
+              "originalPosition": 90,
+              "body": "nit: missing semicolon `;`",
+              "createdAt": "2021-01-28T01:29:20Z",
+              "updatedAt": "2021-01-28T01:33:24Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTc3OTE4NDA1",
+          "commit": {
+            "abbreviatedOid": "6c67b9f"
+          },
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-01-28T01:33:20Z",
+          "updatedAt": "2021-01-28T01:33:20Z",
+          "comments": [
+            {
+              "originalPosition": 90,
+              "body": "```suggestion\r\n       opaque config_id<0..255>;\r\n```",
+              "createdAt": "2021-01-28T01:33:20Z",
+              "updatedAt": "2021-01-28T01:33:24Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "number": 377,
+      "id": "MDExOlB1bGxSZXF1ZXN0NTY2NDE0ODQx",
+      "title": "Remove some more remnants of ESNIKeys",
+      "url": "https://github.com/tlswg/draft-ietf-tls-esni/pull/377",
+      "state": "MERGED",
+      "author": "davidben",
+      "authorAssociation": "CONTRIBUTOR",
+      "assignees": [],
+      "labels": [],
+      "body": "The reference to \"retry keys\" comes from when the field was called\r\nretry_keys and the type ESNIKeys. We've since renamed them to\r\nretry_config and ECHConfig, so the prose should match.",
+      "createdAt": "2021-02-02T23:55:31Z",
+      "updatedAt": "2021-02-03T16:50:21Z",
+      "baseRepository": "tlswg/draft-ietf-tls-esni",
+      "baseRefName": "master",
+      "baseRefOid": "ee94206ba488d702a9acae30386875e14a5bb2a7",
+      "headRepository": "davidben/draft-ietf-tls-esni",
+      "headRefName": "retry-config-naming",
+      "headRefOid": "ad6acf8d783c9d3b39f650160196dc1b3bd5bce9",
+      "closedAt": "2021-02-03T16:50:21Z",
+      "mergedAt": "2021-02-03T16:50:21Z",
+      "mergedBy": "chris-wood",
+      "mergeCommit": {
+        "oid": "f77361979f03b3df295773accbdb4910e6967a40"
+      },
+      "comments": [],
+      "reviews": [
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTgxOTQ3NDI3",
+          "commit": {
+            "abbreviatedOid": "1df4a26"
+          },
+          "author": "cbartle891",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-03T02:08:33Z",
+          "updatedAt": "2021-02-03T02:08:33Z",
+          "comments": [
+            {
+              "originalPosition": 21,
+              "body": "Nit: s/the both/both/",
+              "createdAt": "2021-02-03T02:08:33Z",
+              "updatedAt": "2021-02-03T15:41:23Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTgyNTAzMTI4",
+          "commit": {
+            "abbreviatedOid": "1df4a26"
+          },
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-03T15:41:07Z",
+          "updatedAt": "2021-02-03T15:41:08Z",
+          "comments": [
+            {
+              "originalPosition": 21,
+              "body": "Huh, that's new. I fixed it in https://github.com/davidben/draft-ietf-tls-esni/tree/retry-config-naming, but GitHub doesn't seem to have noticed. Hopefully it's just some weird slowness on their end and the PR will notice sooner or later?",
+              "createdAt": "2021-02-03T15:41:07Z",
+              "updatedAt": "2021-02-03T15:41:23Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTgyNTAzNjk1",
+          "commit": {
+            "abbreviatedOid": "ad6acf8"
+          },
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-03T15:41:38Z",
+          "updatedAt": "2021-02-03T15:41:39Z",
+          "comments": [
+            {
+              "originalPosition": 21,
+              "body": "Okay, now it's noticed. Done.",
+              "createdAt": "2021-02-03T15:41:39Z",
+              "updatedAt": "2021-02-03T15:41:39Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTgyNTc2OTE4",
+          "commit": {
+            "abbreviatedOid": "ad6acf8"
+          },
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "state": "APPROVED",
+          "body": "",
+          "createdAt": "2021-02-03T16:50:15Z",
+          "updatedAt": "2021-02-03T16:50:15Z",
+          "comments": []
         }
       ]
     }
