@@ -5,11 +5,11 @@
 tls                                                          E. Rescorla
 Internet-Draft                                                RTFM, Inc.
 Intended status: Standards Track                                  K. Oku
-Expires: 19 June 2021                                             Fastly
+Expires: 7 August 2021                                            Fastly
                                                              N. Sullivan
                                                                C.A. Wood
                                                               Cloudflare
-                                                        16 December 2020
+                                                         3 February 2021
 
 
                        TLS Encrypted Client Hello
@@ -35,11 +35,11 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 19 June 2021.
+   This Internet-Draft will expire on 7 August 2021.
 
 Copyright Notice
 
-   Copyright (c) 2020 IETF Trust and the persons identified as the
+   Copyright (c) 2021 IETF Trust and the persons identified as the
    document authors.  All rights reserved.
 
    This document is subject to BCP 78 and the IETF Trust's Legal
@@ -424,7 +424,8 @@ Table of Contents
 
    retry_configs  An ECHConfigs structure containing one or more
       ECHConfig structures, in decreasing order of preference, to be
-      used by the client in subsequent connection attempts.
+      used by the client in subsequent connection attempts.  These are
+      known as the server's "retry configurations".
 
    This document also defines the "ech_required" alert, which the client
    MUST send when it offered an "encrypted_client_hello" extension that
@@ -715,10 +716,10 @@ Table of Contents
    handshake, authenticating for ECHConfig.contents.public_name as
    described in Section 6.1.3.3.  If authentication or the handshake
    fails, the client MUST return a failure to the calling application.
-   It MUST NOT use the retry keys.
+   It MUST NOT use the retry configurations.
 
-   Otherwise, when the handshake completes successfully with the public
-   name authenticated, the client MUST abort the connection with an
+   Otherwise, if both authentication and the handshake complete
+   successfully, the client MUST abort the connection with an
    "ech_required" alert.  It then processes the "retry_configs" field
    from the server's "encrypted_client_hello" extension.
 
@@ -730,8 +731,8 @@ Table of Contents
    The client MUST continue to use the previously-advertised
    configurations for subsequent connections.  This avoids introducing
    pinning concerns or a tracking vector, should a malicious server
-   present client-specific retry keys in order to identify the client in
-   a subsequent ECH handshake.
+   present client-specific retry configurations in order to identify the
+   client in a subsequent ECH handshake.
 
    If none of the values provided in "retry_configs" contains a
    supported version, the client can regard ECH as securely disabled by
@@ -1655,16 +1656,16 @@ Table of Contents
    [I-D.ietf-tls-exported-authenticator]
               Sullivan, N., "Exported Authenticators in TLS", Work in
               Progress, Internet-Draft, draft-ietf-tls-exported-
-              authenticator-13, 26 June 2020, <http://www.ietf.org/
+              authenticator-14, 25 January 2021, <http://www.ietf.org/
               internet-drafts/draft-ietf-tls-exported-authenticator-
-              13.txt>.
+              14.txt>.
 
    [I-D.irtf-cfrg-hpke]
               Barnes, R., Bhargavan, K., Lipp, B., and C. Wood, "Hybrid
               Public Key Encryption", Work in Progress, Internet-Draft,
-              draft-irtf-cfrg-hpke-06, 23 October 2020,
+              draft-irtf-cfrg-hpke-07, 16 December 2020,
               <http://www.ietf.org/internet-drafts/draft-irtf-cfrg-hpke-
-              06.txt>.
+              07.txt>.
 
    [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
               Requirement Levels", BCP 14, RFC 2119,
