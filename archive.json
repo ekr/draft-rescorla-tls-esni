@@ -1,6 +1,6 @@
 {
   "magic": "E!vIA5L86J2I",
-  "timestamp": "2021-02-03T16:50:50.101216+00:00",
+  "timestamp": "2021-02-15T19:18:57.857509+00:00",
   "repo": "tlswg/draft-ietf-tls-esni",
   "labels": [
     {
@@ -8619,6 +8619,155 @@
           "body": "\n\nOn 28/01/2021 16:56, Sean Turner wrote:\n> @sftcd I would completely agree with you had the proposed PR been\n> merged and the associated issue been closed. That has not happened.\n> Further, it appears that you might be reading a bit more into Chris'\n> issue summary than is really there. He is not acting in his WG chair\n> capacity here because he is an author; I know he knows that and I\n> really hope you can give him the benefit of the doubt here so that we\n> do not have to suffer the \"no WG chair hat on\" in every\n> message/post.\n\nPerhaps it'd be better to not start a mail with \"After very\nuseful discussion with many folks, it seems now is the time to remove \nconfig_id.\" in cases where that discussion was\npurely private? I can understand it being hard to keep track\nwith the various tools, but for me, that still reads as a\ndecision being announced even if that was not the intent.\n\nSorry for being over-sensitive to this but IMO there is a\nhistory and ongoing tendency with this spec for a subset of\npeople to act as if they and not the IETF/WG have change\ncontrol. I fully accept that they are not deliberately\naiming to avoid having to garner WG consensus but consider\nthat ongoing instances of carelessness such as the above\ndemonstrate that there is an insider/outsider thing going\non here.\n\nS.\n\n> \n> The process, as I see it, is pretty darn near normal. Somebody files\n> an issue and optionally (but preferably) files a PR to address said\n> issue. Discussion ensues amd if substantive it's taken to the list.\n> The PR may or may not be modified based on that discussion. If\n> consensus is reached, the PR is merged and the issue is closed.\n> \n> We are at the discussion point. Can we do that now?\n> \n",
           "createdAt": "2021-01-28T17:20:43Z",
           "updatedAt": "2021-01-28T17:20:43Z"
+        }
+      ]
+    },
+    {
+      "number": 378,
+      "id": "MDU6SXNzdWU4MDI1NDE2MDg=",
+      "title": "Naive outer_extensions decoding is a DoS risk",
+      "url": "https://github.com/tlswg/draft-ietf-tls-esni/issues/378",
+      "state": "OPEN",
+      "author": "davidben",
+      "authorAssociation": "CONTRIBUTOR",
+      "assignees": [],
+      "labels": [],
+      "body": "A naive implementation of decoding the inner ClientHello can easily go quadratic when processing outer_extensions. Thus far, nothing in TLS has required searching for O(N) extensions, only O(implemented extensions). It's likely a lot of TLS implementations handle the extensions list linearly most of the time.\r\n\r\nouter_extensions is now the first time you have to search for extensions you may not have implemented. A naive implementation would then go quadratic, which is a server DoS risk. It doesn't need to go quadratic (for instance, you can sort ClientHelloOuter's extensions and then binary search per lookup), but it's probably worth at least calling this out, if not switching to a simpler decoding scheme.\r\n\r\n(For a simpler decoder, we already require CHInner group the compressed extensions consecutively. We could do the same with CHOuter, at which point we only need to reference one byte slice, be it by offset/length or some goofier scheme.)",
+      "createdAt": "2021-02-05T23:33:28Z",
+      "updatedAt": "2021-02-08T22:51:32Z",
+      "closedAt": null,
+      "comments": [
+        {
+          "author": "sftcd",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "\n\nOn 05/02/2021 23:33, David Benjamin wrote:\n> A naive implementation of decoding the inner ClientHello can easily\n> go quadratic when processing outer_extensions. Thus far, nothing in\n> TLS has required searching for O(N) extensions, only O(implemented\n> extensions). It's likely a lot of TLS implementations handle the\n> extensions list linearly most of the time.\n> \n> outer_extensions is now the first time you have to search for\n> extensions you may not have implemented. A naive implementation would\n> then go quadratic, which is a server DoS risk. It doesn't need to go\n> quadratic (for instance, you can sort ClientHelloOuter's extensions\n> and then binary search per lookup), but it's probably worth at least\n> calling this out, if not switching to a simpler decoding scheme.\n\nSwitching to a simpler scheme: yes please. Just dropping the\ncompression idea entirely: even better:-)\n\nGiven this optimisation is really mostly for PQ schemes, I'd\nargue it'd be better to just drop the current idea and have\na more constrained one, e.g. using a bit mask as the value\nof outer_extensions, so implementation know exactly which\nextensions can ever be copied from the outer CH.\n\nAnd I'd further argue we can leave defining all of that\nuntil later too.\n\nThe current scheme also imposes quite a testing burden.\nAt least with OpenSSL most extensions have some side-effect\nand testing that all combinations of those are handled\ncorrectly for the inner CH isn't trivial. (That's partly\ndown to old code being a bit awful but I guess won't be\nsimple for any code base.)\n\nCheers,\nS.\n\n\n\n> \n> (For a simpler decoder, we already require CHInner group the\n> compressed extensions consecutively. We could do the same with\n> CHOuter, at which point we only need to reference one byte slice, be\n> it by offset/length or some goofier scheme.)\n> \n",
+          "createdAt": "2021-02-06T00:01:19Z",
+          "updatedAt": "2021-02-06T00:01:19Z"
+        },
+        {
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "Not sure I follow the concern with side effects. Are you processing the extensions as part of decompression?\r\n\r\nIn order to make the handshake work, you'd have to construct the ClientHello by bytes anyway. Thus it seems the natural implementation would be to resolve ECH early, before ClientHello processing, then compute the inner ClientHello as bytes, then run the handshake with the resulting ClientHello. This aligns nicely with the model in split mode, etc.\r\n\r\nThe issue I have in mind is simply that the decoding process, a pure function from a pair of byte strings to a byte string, is easy to accidentally make inefficient.",
+          "createdAt": "2021-02-06T03:35:41Z",
+          "updatedAt": "2021-02-06T03:35:41Z"
+        },
+        {
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "> We could do the same with CHOuter, at which point we only need to reference one byte slice, be it by offset/length or some goofier scheme.\r\n\r\nIt occurs to me this might cause some conflicts between wanting ECH-ful and ECH-less ClientHellos to look similar (don't stick out) and pressures on ClientHello extension order. The order *should* be irrelevant, but compat concerns have cropped up before. (If only we required extensions be sorted...)\r\n\r\nAnother possibility for a simpler decode would be if outer_extensions listed indexes into the extension list, rather than extension IDs. Though we would need to answer silly questions like whether it's an index into ClientHelloOuter or ClientHelloOuterAAD.",
+          "createdAt": "2021-02-08T22:51:32Z",
+          "updatedAt": "2021-02-08T22:51:32Z"
+        }
+      ]
+    },
+    {
+      "number": 379,
+      "id": "MDU6SXNzdWU4MDQwMjE1NjY=",
+      "title": "Consider a shorter config ID length",
+      "url": "https://github.com/tlswg/draft-ietf-tls-esni/issues/379",
+      "state": "OPEN",
+      "author": "chris-wood",
+      "authorAssociation": "COLLABORATOR",
+      "assignees": [],
+      "labels": [],
+      "body": "Assuming #376 lands, we need to decide how long we want this server-chosen identifier to be. There are various operational and privacy considerations at play. For example, shorter identifiers mean that GREASE clients may produce colliding values with higher probability, and the cost of trial decryption on the server may be an overly expensive operational cost for some deployments. Longer identifiers may also mean that using keys as a tracking vector is easier. (But as @ekr has pointed out, ECH does not assume DNS answer integrity, so there are other tracking mechanisms at play.) Let's use this issue to sort out this question. \r\n\r\ncc @davidben, @cjpatton, @martinthomson ",
+      "createdAt": "2021-02-08T22:27:58Z",
+      "updatedAt": "2021-02-10T16:36:05Z",
+      "closedAt": null,
+      "comments": [
+        {
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "(This may just be me misinterpreting what you wrote.) Why would a GREASE/real ID collision be expensive operationally? I could see being concerned about perf costs (the connection needs 1 HPKE op instead of 0), but I'm not sure I see the operational concern.",
+          "createdAt": "2021-02-08T22:33:57Z",
+          "updatedAt": "2021-02-08T22:33:57Z"
+        },
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "> Why would a GREASE/real ID collision be expensive operationally? \r\n\r\nIf GREASE collides with a real key ID, then the server attempts decryption to only see that it fails, and then falls back. (The chances of that collision happening are pretty high with a 1-byte ID.) So, yeah, \"expensive operationally\" is \"1 HPKE operation instead of 0.\" Whether or not that's an issue seems server-specific.",
+          "createdAt": "2021-02-08T23:48:09Z",
+          "updatedAt": "2021-02-08T23:48:09Z"
+        },
+        {
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "Ah, okay. I interpreted \"expensive operationally\" to mean there was some operational challenge, but you just mean it might not perform well in some deployments.",
+          "createdAt": "2021-02-08T23:52:18Z",
+          "updatedAt": "2021-02-08T23:52:18Z"
+        },
+        {
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "Although, presumably no less well than connections that actually enable ECH.",
+          "createdAt": "2021-02-08T23:53:11Z",
+          "updatedAt": "2021-02-08T23:53:11Z"
+        },
+        {
+          "author": "martinthomson",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "From my perspective, I am totally comfortable with a 1/64 (approximately) chance of hitting that 1 bogus HPKE operation.  A server that offers ECH has to be prepared for every connection it receives to use ECH.\r\n\r\nBut I don't operate a server, so take that position with that in mind.",
+          "createdAt": "2021-02-09T00:06:19Z",
+          "updatedAt": "2021-02-09T00:06:19Z"
+        },
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "> From my perspective, I am totally comfortable with a 1/64 (approximately) chance of hitting that 1 bogus HPKE operation.  A server that offers ECH has to be prepared for every connection it receives to use ECH.\n\nLikewise. I see little reason for anything longer than a byte here.",
+          "createdAt": "2021-02-09T00:29:58Z",
+          "updatedAt": "2021-02-09T00:29:58Z"
+        },
+        {
+          "author": "cjpatton",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "I also am not worried about a non-negligible probability of a greased config_id colliding with a real config_Id. I think a more important consideration that came up in #376 is dealing with two real configs having the same config_id. In particular, I think the spec should make it easy for servers to avoid collisions altogether. That way the server doesn't have to resort to trial decryption in case of a collision.\r\n\r\nAt the same time, we need to make it easy for clients to grease. As has been suggested, if we want a 1-byte config_id, I think we should mandate the config_id be chosen at random, but permit rejection sampling in order to allow the server to avoid collisions. This seems like a funky requirement to put in a spec, but also seems perfectly fine from a technical perspective.\r\n\r\n",
+          "createdAt": "2021-02-09T20:08:32Z",
+          "updatedAt": "2021-02-09T20:12:14Z"
+        },
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "I'd be fine with that as the RECOMMENDED way to generate these identifiers. Perhaps the text could say something like the following?\r\n\r\n> The RECOMMENDED technique for generating a new ECHConfig.config_id is to choose a random byte. This process should be repeated if this config_id matches that of any existing and valid ECHConfig.\r\n\r\nOf course, clients can't validate that servers do this, so the best we can do is recommend some best practice here.",
+          "createdAt": "2021-02-09T21:43:31Z",
+          "updatedAt": "2021-02-09T21:43:46Z"
+        },
+        {
+          "author": "martinthomson",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "That seems like a reasonable outcome.  It require coordination, but at a level at which I think is reasonable (you don't want independent processes feeding ECH keys into the system, that is a recipe for failure).",
+          "createdAt": "2021-02-10T00:26:49Z",
+          "updatedAt": "2021-02-10T00:26:49Z"
+        },
+        {
+          "author": "cjpatton",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "Works for me!",
+          "createdAt": "2021-02-10T16:36:04Z",
+          "updatedAt": "2021-02-10T16:36:04Z"
+        }
+      ]
+    },
+    {
+      "number": 380,
+      "id": "MDU6SXNzdWU4MDc2MDc5OTI=",
+      "title": "Related Privacy Leaks suggests too strong of a correlation across resumption",
+      "url": "https://github.com/tlswg/draft-ietf-tls-esni/issues/380",
+      "state": "OPEN",
+      "author": "davidben",
+      "authorAssociation": "CONTRIBUTOR",
+      "assignees": [],
+      "labels": [],
+      "body": "(Filing this as a separate ticket so I don't forget to propose new text.)\r\n\r\n#371 added this text:\r\n\r\n> Attacks that rely on non-ECH traffic to infer server identity in an ECH connection are \r\n> out of scope for this document. For example, a client that connects to a particular host \r\n> prior to ECH deployment may later resume a connection to that same host after ECH \r\n> deployment, thereby linking the resulting ECH connection to the original non-ECH \r\n> connection.\r\n\r\nI think this statement is a bit strong and overstates the issue. It reads as if resuming connections across ECH and non-ECH links the two connections.\r\n\r\nIf we're talking about someone other than the server, this isn't true. Tickets are issued encrypted and, in ECH, even sent encrypted. Even if they were sent in the clear, TLS 1.3's [single-use tickets](https://tools.ietf.org/html/rfc8446#appendix-C.4) protects against such correlations. Rather, the correlation in #369 is a much weaker one: based on either the size of the ClientHello or whether the server accepted the ticket, you learn a single bit for whether it was *some* previous connection made by that client. You don't know which previous connection it was, and you don't know if it was an ECH connection or a non-ECH connection. In fact what you learn... more-or-less aligns with the anonymity set. See https://github.com/tlswg/draft-ietf-tls-esni/issues/369#issuecomment-736083162.\r\n\r\n(If we're talking about the server, yes, resuming allows the server to link the two connections. That's fundamental to resumption and is in the purview of https://github.com/tlswg/tls13-spec/pull/1205. I don't think most applications would consider ECH vs non-ECH a correlation boundary w.r.t. the server itself.)",
+      "createdAt": "2021-02-12T23:17:13Z",
+      "updatedAt": "2021-02-15T17:07:17Z",
+      "closedAt": null,
+      "comments": [
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "The original text doesn't necessarily imply that on-the-wire tickets are the linking factor. Rather that the shape of the handshake, time it takes to complete, etc, can be a proxy for whether or not resumption occurred. I don't think we need to change anything here. (But I also would not object to someone else sending a PR!) ",
+          "createdAt": "2021-02-15T17:06:58Z",
+          "updatedAt": "2021-02-15T17:07:17Z"
         }
       ]
     }
@@ -34429,13 +34578,13 @@
       "labels": [],
       "body": "We may want to change how we deal with GREASE (does a randomly selected byte stick out?), but this should address the issue for now. I think we can (should) treat these issues separately, and focus just on the `key_id` simplification here.\r\n\r\nCloses #375.\r\n\r\ncc @davidben, @cjpatton, @martinthomson, @ekr",
       "createdAt": "2021-01-26T01:48:24Z",
-      "updatedAt": "2021-01-29T18:28:51Z",
+      "updatedAt": "2021-02-15T19:18:38Z",
       "baseRepository": "tlswg/draft-ietf-tls-esni",
       "baseRefName": "master",
       "baseRefOid": "ee94206ba488d702a9acae30386875e14a5bb2a7",
       "headRepository": "tlswg/draft-ietf-tls-esni",
       "headRefName": "caw/config_id-to-key_id",
-      "headRefOid": "2d2e514aa4a63c7e02a30a1295b732a7b9527f96",
+      "headRefOid": "ce8a04539acf0655a87ed57aa422c795aa8c6fd6",
       "closedAt": null,
       "mergedAt": null,
       "mergedBy": null,
@@ -34564,25 +34713,25 @@
               "originalPosition": 5,
               "body": "Why this name change?",
               "createdAt": "2021-01-26T17:33:09Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             },
             {
               "originalPosition": 14,
               "body": "IMO it's a bit tidier to have `cipher_suites` immediately precede the `kem_id`.",
               "createdAt": "2021-01-26T17:37:01Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             },
             {
               "originalPosition": 163,
               "body": "Whether this sticks out depends on how the real `key_id` is chosen. If chosen randomly then we're golden. However the chance of two randomly chosen key ids colliding is high.",
               "createdAt": "2021-01-26T17:48:58Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             },
             {
               "originalPosition": 53,
               "body": "Why `key_id` instead of `config_id`? The new name sounds as if it should be possible to have a single key used by multiple configs, but what we actually want is a handle with which the server can resolve which config to use.",
               "createdAt": "2021-01-26T17:51:14Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         },
@@ -34602,7 +34751,7 @@
               "originalPosition": 14,
               "body": "I don't have a strong feeling here. I think the only important bit is that the kem_id precedes the public key.",
               "createdAt": "2021-01-26T17:56:39Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         },
@@ -34622,7 +34771,7 @@
               "originalPosition": 5,
               "body": "It seems to capture the intent of the struct better.",
               "createdAt": "2021-01-26T17:56:59Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         },
@@ -34642,7 +34791,7 @@
               "originalPosition": 53,
               "body": "Since the identifier corresponds primarily to the HPKE public key, and not the public name et al. (If we lifted the key_id *out* of the HpkeKeyConfig, I think config_id would be better.)",
               "createdAt": "2021-01-26T17:58:24Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         },
@@ -34662,25 +34811,25 @@
               "originalPosition": 53,
               "body": "SHOULD instead of MAY?",
               "createdAt": "2021-01-26T19:28:03Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             },
             {
               "originalPosition": 14,
               "body": "My thinking is that we should minimize changes to the ECHConfig structure, since the less changes we make the easier it will be to support multiple versions. Concretely, I would revert changes that re-order parameter unless there's a compelling reason to reorder them.",
               "createdAt": "2021-01-26T19:29:31Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             },
             {
               "originalPosition": 53,
               "body": "Perhaps another way to resolve this would be to change `key_id` to simply `id`. The `key_` prefix seems a bit redundant.",
               "createdAt": "2021-01-26T22:32:44Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             },
             {
               "originalPosition": 154,
               "body": "Like we did for config_id, we could avoid re-transmitting the key_id by changing its type to a U8-prefixed string. IIRC there were upsides to not re-transmitting config_id.",
               "createdAt": "2021-01-26T22:42:21Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         },
@@ -34700,7 +34849,7 @@
               "originalPosition": 14,
               "body": "Any change is a change and they are all equally not-free, so minimizing changes is not a goal I would worry about.  In terms of ordering, I prefer what @chris-wood proposed.",
               "createdAt": "2021-01-27T05:38:49Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         },
@@ -34720,7 +34869,7 @@
               "originalPosition": 53,
               "body": "We could do that, but then ClientECH would either have an inconsistently named field (key_id) or an ambiguously named field (id). I'd prefer to keep key_id, but in the interest of minimizing changes in this PR, I'll revert to config_id.",
               "createdAt": "2021-01-27T13:09:27Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         },
@@ -34740,7 +34889,7 @@
               "originalPosition": 154,
               "body": "One upside is that the server doesn't have to check them for equality against HRR, but there's already a check for the cipher_suite field, so this seems like not a stretch.",
               "createdAt": "2021-01-27T13:17:26Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         },
@@ -34760,7 +34909,7 @@
               "originalPosition": 53,
               "body": "That would align this with GREASE, which seems like a fine thing to do. (That is, in both GREASE and optional configs, the ID would be random.)",
               "createdAt": "2021-01-27T13:19:57Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         },
@@ -34780,7 +34929,7 @@
               "originalPosition": 154,
               "body": "I reverted this change, too. It's now length prefixed so the HRR case is empty. We can discuss the size of the ID in a separate issue.",
               "createdAt": "2021-01-27T14:06:42Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         },
@@ -34800,13 +34949,13 @@
               "originalPosition": 146,
               "body": "So when is empty valid?",
               "createdAt": "2021-01-27T14:09:21Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             },
             {
               "originalPosition": 96,
               "body": "```suggestion\r\n: The ECHConfigContents.key_config.config_id for the chosen ECHConfig.\r\n```",
               "createdAt": "2021-01-27T14:10:27Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         },
@@ -34826,7 +34975,7 @@
               "originalPosition": 89,
               "body": "Why change the wire format of the ECH extension? We might end up changing the type of `config_id` anyway, in which case the point is moot. However, for now, I think we should keep the extension parameters in the same order.",
               "createdAt": "2021-01-27T16:47:45Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         },
@@ -34846,7 +34995,7 @@
               "originalPosition": 89,
               "body": "Reverted!",
               "createdAt": "2021-01-27T16:59:35Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         },
@@ -34866,7 +35015,7 @@
               "originalPosition": 146,
               "body": "It's always valid, I think. The server will just have to do trial decryption.",
               "createdAt": "2021-01-27T17:00:14Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         },
@@ -34886,7 +35035,7 @@
               "originalPosition": 146,
               "body": "An empty identifier is just one possible value in the space.  It doesn't mean that other configurations aren't identified by non-empty identifiers.",
               "createdAt": "2021-01-28T00:06:53Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         },
@@ -34919,7 +35068,7 @@
               "originalPosition": 189,
               "body": "I believe this change needs to be reverted as well. From {#client-hrr}:\r\n\r\n> The client then modifies the \"encrypted_client_hello\" extension in ClientHelloOuter as follows:\r\n> \r\n>   - **config_id is replaced with the empty string.**\r\n>   - cipher_suite is unchanged and contains the client's chosen HPKE cipher suite.\r\n>   - enc is replaced with the empty string.\r\n>   - payload is replaced with the value computed above.\r\n",
               "createdAt": "2021-01-28T01:13:01Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         },
@@ -34939,7 +35088,7 @@
               "originalPosition": 189,
               "body": "Fixed.",
               "createdAt": "2021-01-28T01:18:17Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         },
@@ -34959,7 +35108,7 @@
               "originalPosition": 90,
               "body": "nit: missing semicolon `;`",
               "createdAt": "2021-01-28T01:29:20Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         },
@@ -34979,7 +35128,125 @@
               "originalPosition": 90,
               "body": "```suggestion\r\n       opaque config_id<0..255>;\r\n```",
               "createdAt": "2021-01-28T01:33:20Z",
-              "updatedAt": "2021-01-28T01:33:24Z"
+              "updatedAt": "2021-02-15T19:18:38Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTkwNzA1NTE5",
+          "commit": {
+            "abbreviatedOid": "2d2e514"
+          },
+          "author": "ekr",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-15T19:04:33Z",
+          "updatedAt": "2021-02-15T19:06:17Z",
+          "comments": [
+            {
+              "originalPosition": 18,
+              "body": "It's a little goofy to have the config_id apply to the whole thing here, but I suppose it's inlined.",
+              "createdAt": "2021-02-15T19:04:33Z",
+              "updatedAt": "2021-02-15T19:18:38Z"
+            },
+            {
+              "originalPosition": 146,
+              "body": "What I'm saying here is that we have a way to indicate the identifier is optional, and that's to have it be 8 random bytes. So when would you use empty?",
+              "createdAt": "2021-02-15T19:05:50Z",
+              "updatedAt": "2021-02-15T19:18:38Z"
+            },
+            {
+              "originalPosition": 18,
+              "body": "I think we at least need a comment here to explain that.",
+              "createdAt": "2021-02-15T19:06:14Z",
+              "updatedAt": "2021-02-15T19:18:38Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTkwNzA2Nzk5",
+          "commit": {
+            "abbreviatedOid": "2d2e514"
+          },
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-15T19:07:47Z",
+          "updatedAt": "2021-02-15T19:07:47Z",
+          "comments": [
+            {
+              "originalPosition": 18,
+              "body": "Can you suggest text?",
+              "createdAt": "2021-02-15T19:07:47Z",
+              "updatedAt": "2021-02-15T19:18:38Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTkwNzA3MjQ0",
+          "commit": {
+            "abbreviatedOid": "2d2e514"
+          },
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-15T19:08:52Z",
+          "updatedAt": "2021-02-15T19:08:52Z",
+          "comments": [
+            {
+              "originalPosition": 146,
+              "body": "Whenever the application wants it, I suppose? We're just recommending that these be random when optional. As Martin says, they don't need to be. Can you propose text if you think something else needs to be said here?",
+              "createdAt": "2021-02-15T19:08:52Z",
+              "updatedAt": "2021-02-15T19:18:38Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTkwNzA3NTM4",
+          "commit": {
+            "abbreviatedOid": "2d2e514"
+          },
+          "author": "ekr",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-15T19:09:44Z",
+          "updatedAt": "2021-02-15T19:11:42Z",
+          "comments": [
+            {
+              "originalPosition": 146,
+              "body": "I think we should forbid the empty identifier.",
+              "createdAt": "2021-02-15T19:09:44Z",
+              "updatedAt": "2021-02-15T19:18:38Z"
+            },
+            {
+              "originalPosition": 30,
+              "body": "```suggestion\r\nwith the HPKE public key. Note that this structure contains the `config_id` field, which applies to the\r\nentire ECHConfigContents. Sites MUST NOT publish two differet`ECHConfigContents` values with the same\r\n`HpkeKeyConfig` value.\r\n```",
+              "createdAt": "2021-02-15T19:11:25Z",
+              "updatedAt": "2021-02-15T19:18:38Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTkwNzA4Nzc4",
+          "commit": {
+            "abbreviatedOid": "2d2e514"
+          },
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-15T19:13:00Z",
+          "updatedAt": "2021-02-15T19:13:01Z",
+          "comments": [
+            {
+              "originalPosition": 146,
+              "body": "I'd like to not do anything here, especially given #379, wherein we move from a vector to a `uint`. Would that be OK?",
+              "createdAt": "2021-02-15T19:13:01Z",
+              "updatedAt": "2021-02-15T19:18:38Z"
             }
           ]
         }
