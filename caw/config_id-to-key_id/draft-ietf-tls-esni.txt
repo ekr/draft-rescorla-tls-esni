@@ -5,11 +5,11 @@
 tls                                                          E. Rescorla
 Internet-Draft                                                RTFM, Inc.
 Intended status: Standards Track                                  K. Oku
-Expires: 1 August 2021                                            Fastly
+Expires: 19 August 2021                                           Fastly
                                                              N. Sullivan
                                                                C.A. Wood
                                                               Cloudflare
-                                                         28 January 2021
+                                                        15 February 2021
 
 
                        TLS Encrypted Client Hello
@@ -35,7 +35,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 1 August 2021.
+   This Internet-Draft will expire on 19 August 2021.
 
 Copyright Notice
 
@@ -331,7 +331,11 @@ Table of Contents
    The "ECHConfigContents" structure contains the following fields:
 
    key_config  A "HpkeKeyConfig" structure carrying the configuration
-      information associated with the HPKE public key.
+      information associated with the HPKE public key.  Note that this
+      structure contains the "config_id" field, which applies to the
+      entire ECHConfigContents.  Sites MUST NOT publish two
+      differet"ECHConfigContents" values with the same "HpkeKeyConfig"
+      value.
 
    maximum_name_length  The longest name of a backend server, if known.
       If this value is not known it can be set to zero, in which case
@@ -1658,21 +1662,21 @@ Table of Contents
               and parameter specification via the DNS (DNS SVCB and
               HTTPS RRs)", Work in Progress, Internet-Draft, draft-ietf-
               dnsop-svcb-https-02, 2 November 2020,
-              <http://www.ietf.org/internet-drafts/draft-ietf-dnsop-
-              svcb-https-02.txt>.
+              <https://www.ietf.org/archive/id/draft-ietf-dnsop-svcb-
+              https-02.txt>.
 
    [I-D.ietf-tls-exported-authenticator]
               Sullivan, N., "Exported Authenticators in TLS", Work in
               Progress, Internet-Draft, draft-ietf-tls-exported-
-              authenticator-14, 25 January 2021, <http://www.ietf.org/
-              internet-drafts/draft-ietf-tls-exported-authenticator-
-              14.txt>.
+              authenticator-14, 25 January 2021,
+              <https://www.ietf.org/archive/id/draft-ietf-tls-exported-
+              authenticator-14.txt>.
 
    [I-D.irtf-cfrg-hpke]
-              Barnes, R., Bhargavan, K., Lipp, B., and C. Wood, "Hybrid
-              Public Key Encryption", Work in Progress, Internet-Draft,
-              draft-irtf-cfrg-hpke-07, 16 December 2020,
-              <http://www.ietf.org/internet-drafts/draft-irtf-cfrg-hpke-
+              Barnes, R. L., Bhargavan, K., Lipp, B., and C. A. Wood,
+              "Hybrid Public Key Encryption", Work in Progress,
+              Internet-Draft, draft-irtf-cfrg-hpke-07, 16 December 2020,
+              <https://www.ietf.org/archive/id/draft-irtf-cfrg-hpke-
               07.txt>.
 
    [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
@@ -1702,7 +1706,7 @@ Table of Contents
    [I-D.kazuho-protected-sni]
               Oku, K., "TLS Extensions for Protecting SNI", Work in
               Progress, Internet-Draft, draft-kazuho-protected-sni-00,
-              18 July 2017, <http://www.ietf.org/internet-drafts/draft-
+              18 July 2017, <https://www.ietf.org/archive/id/draft-
               kazuho-protected-sni-00.txt>.
 
    [RFC7301]  Friedl, S., Popov, A., Langley, A., and E. Stephan,
