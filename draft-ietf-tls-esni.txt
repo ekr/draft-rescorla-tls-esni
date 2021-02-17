@@ -5,11 +5,11 @@
 tls                                                          E. Rescorla
 Internet-Draft                                                RTFM, Inc.
 Intended status: Standards Track                                  K. Oku
-Expires: 19 August 2021                                           Fastly
+Expires: 21 August 2021                                           Fastly
                                                              N. Sullivan
                                                                C.A. Wood
                                                               Cloudflare
-                                                        15 February 2021
+                                                        17 February 2021
 
 
                        TLS Encrypted Client Hello
@@ -35,7 +35,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 19 August 2021.
+   This Internet-Draft will expire on 21 August 2021.
 
 Copyright Notice
 
@@ -1344,9 +1344,10 @@ Table of Contents
    Attacks that rely on non-ECH traffic to infer server identity in an
    ECH connection are out of scope for this document.  For example, a
    client that connects to a particular host prior to ECH deployment may
-   later resume a connection to that same host after ECH deployment,
-   thereby linking the resulting ECH connection to the original non-ECH
-   connection.
+   later resume a connection to that same host after ECH deployment.  An
+   adversary that observes this can deduce that the ECH-enabled
+   connection was made to a host that the client previously connected to
+   and which is within the same anonymity set.
 
 10.7.  Attacks Exploiting Acceptance Confirmation
 
@@ -1662,9 +1663,9 @@ Table of Contents
    [HTTPS-RR] Schwartz, B., Bishop, M., and E. Nygren, "Service binding
               and parameter specification via the DNS (DNS SVCB and
               HTTPS RRs)", Work in Progress, Internet-Draft, draft-ietf-
-              dnsop-svcb-https-02, 2 November 2020,
+              dnsop-svcb-https-03, 17 February 2021,
               <https://www.ietf.org/archive/id/draft-ietf-dnsop-svcb-
-              https-02.txt>.
+              https-03.txt>.
 
    [I-D.ietf-tls-exported-authenticator]
               Sullivan, N., "Exported Authenticators in TLS", Work in
@@ -1676,9 +1677,9 @@ Table of Contents
    [I-D.irtf-cfrg-hpke]
               Barnes, R. L., Bhargavan, K., Lipp, B., and C. A. Wood,
               "Hybrid Public Key Encryption", Work in Progress,
-              Internet-Draft, draft-irtf-cfrg-hpke-07, 16 December 2020,
+              Internet-Draft, draft-irtf-cfrg-hpke-08, 15 February 2021,
               <https://www.ietf.org/archive/id/draft-irtf-cfrg-hpke-
-              07.txt>.
+              08.txt>.
 
    [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
               Requirement Levels", BCP 14, RFC 2119,
