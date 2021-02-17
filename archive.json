@@ -1,6 +1,6 @@
 {
   "magic": "E!vIA5L86J2I",
-  "timestamp": "2021-02-17T02:20:23.432792+00:00",
+  "timestamp": "2021-02-17T20:21:27.526773+00:00",
   "repo": "tlswg/draft-ietf-tls-esni",
   "labels": [
     {
@@ -8759,15 +8759,15 @@
       "id": "MDU6SXNzdWU4MDc2MDc5OTI=",
       "title": "Related Privacy Leaks suggests too strong of a correlation across resumption",
       "url": "https://github.com/tlswg/draft-ietf-tls-esni/issues/380",
-      "state": "OPEN",
+      "state": "CLOSED",
       "author": "davidben",
       "authorAssociation": "CONTRIBUTOR",
       "assignees": [],
       "labels": [],
       "body": "(Filing this as a separate ticket so I don't forget to propose new text.)\r\n\r\n#371 added this text:\r\n\r\n> Attacks that rely on non-ECH traffic to infer server identity in an ECH connection are \r\n> out of scope for this document. For example, a client that connects to a particular host \r\n> prior to ECH deployment may later resume a connection to that same host after ECH \r\n> deployment, thereby linking the resulting ECH connection to the original non-ECH \r\n> connection.\r\n\r\nI think this statement is a bit strong and overstates the issue. It reads as if resuming connections across ECH and non-ECH links the two connections.\r\n\r\nIf we're talking about someone other than the server, this isn't true. Tickets are issued encrypted and, in ECH, even sent encrypted. Even if they were sent in the clear, TLS 1.3's [single-use tickets](https://tools.ietf.org/html/rfc8446#appendix-C.4) protects against such correlations. Rather, the correlation in #369 is a much weaker one: based on either the size of the ClientHello or whether the server accepted the ticket, you learn a single bit for whether it was *some* previous connection made by that client. You don't know which previous connection it was, and you don't know if it was an ECH connection or a non-ECH connection. In fact what you learn... more-or-less aligns with the anonymity set. See https://github.com/tlswg/draft-ietf-tls-esni/issues/369#issuecomment-736083162.\r\n\r\n(If we're talking about the server, yes, resuming allows the server to link the two connections. That's fundamental to resumption and is in the purview of https://github.com/tlswg/tls13-spec/pull/1205. I don't think most applications would consider ECH vs non-ECH a correlation boundary w.r.t. the server itself.)",
       "createdAt": "2021-02-12T23:17:13Z",
-      "updatedAt": "2021-02-17T01:11:45Z",
-      "closedAt": null,
+      "updatedAt": "2021-02-17T20:20:55Z",
+      "closedAt": "2021-02-17T20:20:55Z",
       "comments": [
         {
           "author": "chris-wood",
@@ -35576,7 +35576,7 @@
       "labels": [],
       "body": "This PR aims to resolve the discussion in issue #354 by:\r\n\r\n1. clarifying goals/non-goals for \"don't stick out\";\r\n2. creating an OPEN ISSUE for a future experiment that assesses the deployability of the GREASE extension; and\r\n3. creating a TODO to address differentiators based on session resumption and the PSK extension.",
       "createdAt": "2021-02-15T21:35:45Z",
-      "updatedAt": "2021-02-16T23:27:01Z",
+      "updatedAt": "2021-02-17T15:49:52Z",
       "baseRepository": "tlswg/draft-ietf-tls-esni",
       "baseRefName": "master",
       "baseRefOid": "c1a3d71f20f6fa69da00fa5ee7fa1a11abc291de",
@@ -35665,6 +35665,81 @@
               "updatedAt": "2021-02-16T23:25:24Z"
             }
           ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTkyMzQzMTI4",
+          "commit": {
+            "abbreviatedOid": "fc1c47c"
+          },
+          "author": "cjpatton",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-17T15:49:52Z",
+          "updatedAt": "2021-02-17T15:49:52Z",
+          "comments": [
+            {
+              "originalPosition": 93,
+              "body": "Yup, that's what I mean!",
+              "createdAt": "2021-02-17T15:49:52Z",
+              "updatedAt": "2021-02-17T15:49:52Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "number": 383,
+      "id": "MDExOlB1bGxSZXF1ZXN0NTc0NTk2Nzcy",
+      "title": "Clarify privacy risk pertaining to resumption.",
+      "url": "https://github.com/tlswg/draft-ietf-tls-esni/pull/383",
+      "state": "MERGED",
+      "author": "cbartle891",
+      "authorAssociation": "COLLABORATOR",
+      "assignees": [],
+      "labels": [],
+      "body": "Resolves #380.\r\n\r\ncc @davidben ",
+      "createdAt": "2021-02-17T02:21:32Z",
+      "updatedAt": "2021-02-17T20:20:55Z",
+      "baseRepository": "tlswg/draft-ietf-tls-esni",
+      "baseRefName": "master",
+      "baseRefOid": "c1a3d71f20f6fa69da00fa5ee7fa1a11abc291de",
+      "headRepository": "tlswg/draft-ietf-tls-esni",
+      "headRefName": "cdb/privacy-leak-clarification",
+      "headRefOid": "23bd6b03319b515b5b6835f56bb77c97181c8cda",
+      "closedAt": "2021-02-17T20:20:55Z",
+      "mergedAt": "2021-02-17T20:20:55Z",
+      "mergedBy": "cbartle891",
+      "mergeCommit": {
+        "oid": "b7757a11639f4b6ea77d97477ee39c2398dcc9a5"
+      },
+      "comments": [],
+      "reviews": [
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTkyNDgyODkx",
+          "commit": {
+            "abbreviatedOid": "23bd6b0"
+          },
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "state": "APPROVED",
+          "body": "LGTM -- thanks!",
+          "createdAt": "2021-02-17T18:08:33Z",
+          "updatedAt": "2021-02-17T18:08:33Z",
+          "comments": []
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTkyNTkyNzE4",
+          "commit": {
+            "abbreviatedOid": "23bd6b0"
+          },
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "APPROVED",
+          "body": "Thanks!",
+          "createdAt": "2021-02-17T20:19:11Z",
+          "updatedAt": "2021-02-17T20:19:11Z",
+          "comments": []
         }
       ]
     }
