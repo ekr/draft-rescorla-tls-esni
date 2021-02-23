@@ -1,6 +1,6 @@
 {
   "magic": "E!vIA5L86J2I",
-  "timestamp": "2021-02-17T20:21:27.526773+00:00",
+  "timestamp": "2021-02-23T01:36:57.244328+00:00",
   "repo": "tlswg/draft-ietf-tls-esni",
   "labels": [
     {
@@ -8488,7 +8488,7 @@
       "labels": [],
       "body": "I wanted to jot this down before the holidays, in advance of writing a more rigorous PR. This is a proposal to go fix all our HRR problems in one swoop (#233, #373, #358, and #333).\r\n\r\nFirst, whatever our \"don't stick out\" goals are (#354), sticking out on true HRR flows is pretty much hopeless if the attacker is allowed to make a second connection and probe server behavior: replay the first ClientHello and then perturb the second ClientHello's ciphertext. The server can't change its mind after the fact. So I'm going to intentionally give up on that, which means fixing #358 is possible. The proposal is thus:\r\n\r\n* The client sends ClientHelloOuter1 and ClientHelloInner1 as in the current document.\r\n* If client-facing server accepts ECH, it forwards ClientHelloInner1 to the backend server, as before.\r\n* If the backend server sends HelloRetryRequest in response, call this HelloRetryRequestInner.\r\n* The backend server constructs HelloRetryRequestOuter containing the following:\r\n  * An encrypted_client_hello extension with the HelloRetryRequestInner, encrypted with the HPKE context (see open questions).\r\n  * Optionally, a cookie extension with the outer cookie (fixes #333)\r\n  * No other extensions are allowed, though future extensions, if solicited by ClientHelloOuter1 may change this. (See open questions.)\r\n* HelloRetryRequests signals to the client whether ECH was accepted or not (fixes #373, avoids #316) by the presence of the encrypted_client_hello extension:\r\n* If there is no encrypted_client_hello extension, the client computes ClientHello2 based on ClientHelloOuter1 and HelloRetryRequest. There is no more ClientHelloInner2. We're not doing ECH, and HRR may not even be valid for CHI2 (the #316 mess). Instead, it blindly copies over ClientHelloOuter1's extension. This is a waste of bytes, but fixes #358.\r\n* If there is an encrypted_client_hello extension...\r\n  * First, the client decrypts HelloRetryRequestInner. If it fails, it sends decrypt_failure and aborts. GREASE ECH is considered to always fail to decrypt and always sends decrypt_failure.\r\n  * Otherwise, the client computes ClientHelloInner2 based on HelloRetryRequestInner in the usual way, handling errors in the usual way.\r\n  * The client constructs ClientHelloOuter2 containing the encrypted ClientHelloInner2 and HelloRetryRequestOuter.cookie. We know the server is accepting ECH at this point, so there is no need to send much of any other fields. See open questions below.\r\n* HRR or not, the ServerHello is required to have an ECH acceptance confirmation as usual. The client processes it as follows:\r\n  * If there was no HRR, do what the document currently says and figure out ECH acceptance here.\r\n  * If there was an HRR, you already know ECH accept or reject. If ECH reject, move and and complete the outer handshake without any fuss. The inner handshake terminated too early to compute handshake_secret anyway. If ECH accept, check the acceptance confirmation and send illegal_parameter or so if it's wrong. (See open questions below)\r\n\r\nI believe this solves our various HRR problems:\r\n\r\n* The client-facing server can send an HRR cookie without coordinating with the inner handshake (#333).\r\n* The client does not need to evaluate one HRR against two different ClientHellos, so the two ClientHellos can have arbitrarily different preferences (#233, #316).\r\n* The client knows ECH accept at the first server response, so it does not need to construct two different second ClientHellos (#373).\r\n* The ECH extension only changes when solicited (#358).\r\n\r\nThoughts?\r\n\r\n### Open questions\r\n\r\n#### How and should we encrypt HelloRetryRequestInner?\r\n\r\nThe above sketch encrypts HRRInner, but HPKE only allows the sender to encrypt. This is easy to specify though: use the exporters to derive another AEAD key and toss it into the HPKE cipher suite's AEAD.\r\n\r\nAs for why encrypt it, things should still work if we stick it in the clear. But we may want to for two reasons:\r\n\r\n1. Like backend server tickets, backend server cookies are, today, not particularly constrained w.r.t. what they reveal. A ticket or cookie from one TLS implementation may be different from the other, and Split Mode servers may have multiple backend implementations in their anonymity set. It may also vary for other reasons. NewSessionTicket is encrypted, as is the pre_shared_key extension, so we've solved it for tickets. ClientHello.cookie is also encrypted, which leaves HRR.cookie. Encrypting HRRInner fills that in.\r\n2. If HRRInner is not authenticated by the HPKE context, an attacker can try to distinguish GREASE by sending a fake cleartext HRRInner and seeing how the client responds. Authenticating HRRInner means you cannot spoof an inner HRR flow.\r\n\r\nWhether the second property is worthwhile is unclear (https://github.com/tlswg/draft-ietf-tls-esni/issues/354#issuecomment-743924431), but I think the first property is valuable, at which point we get the second anyway.\r\n\r\n#### Other HelloRetryRequestOuter extensions? What is ClientHelloOuter2?\r\n\r\nThis design avoids #316 by assembling a cursory ClientHelloOuter2, rather than actually trying to continue the outer handshake. We would need to decide how to do that. I can think of a few possibilities:\r\n\r\n1. Simply specify throwaway values for all the non-extension fields and declare ClientHelloOuter2 contains exactly two extensions, an optional cookie and encrypted_client_hello. EncodedClientHelloInner2 does not bother with outer_extensions because there is nothing to compress.\r\n2. Make up a new message type to avoid the throwaway fields.\r\n3. ~~Compute an actual ClientHelloOuter2, following RFC8446, based on ClientHelloOuter1 and HelloRetryRequestOuter. If HelloRetryRequestOuter wants to request new key_shares, that's fine. it's just pointless.~~\r\n\r\nI don't like option 3. It's conceptually kinda clever, but adds unnecessary fuss to the protocol. Consider a client which sends CHO1.key_share == CHI1.key_share and compresses them. Key share preferences are rarely secret and this avoids doubling up potentially large post-quantum values.\r\n\r\nThe backend server now requests HRR because it wanted a different key share. So CHI2.key_share != CHI1.key_share and is based on HRRI.key_share. But the client-facing server probably did the straightforward thing and didn't send HRRO.key_share because there's no point. It'll never process CHO2.\r\n\r\nOption 3 would then require that CHO2.key_share == CHO1.key_share because HRRO did not request a change. That means CHO2.key_share != CHI2.key_share and the client must waste a lot of bytes sending two of them. In contrast, options 1 and 2 say that CHO2.key_share doesn't exist anyway, so we only ever send one key share.\r\n\r\nIt also adds implementation complexity to the client, which now needs to evaluate two different full-featured HRRs in one handshake, despite it being unused.\r\n\r\nOption 1 and 2 are basically equivalent, though it's worth noting that HRRO and CHO2 do not _quite_ have the same rules as anymore, so whether we want to stick them in the same message type is interesting...\r\n\r\n#### SH.random acceptance signal after HRR?\r\n\r\nAfter HRR, the SH.random acceptance signal doesn't do anything. We could just as easily omit it, because the client has already gotten the signal. The above sketch keeps it in, mostly for consistency's sake: right now we require that backend servers support the ech_is_inner extension. Getting this wrong will be noticed because the client will not successfully complete the connection. If we omit the acceptance signal in HRR flows, the client will no longer consistently notice. As long as we have this requirement, enforcing it uniformly is more robust, so I'm thinking we keep it in there.\r\n\r\n#### Copy or omit CH2.encrypted_client_hello on reject?\r\n\r\nThis sketch says to copy CH2.encrypted_client_hello on ECH reject. This is a waste of bytes but retains compatibility with RFC8446's rules. In particular, we know of a compatibility issue in #358. It seemed from the WG discussion we generally think the RFC8446 rules are wrong, so we could intentionally break them and drop the extension.\r\n\r\nMy inclination is we should try to get the rule changed and implementations fixed, but maybe that should happen separately from ECH and we copy it for now.",
       "createdAt": "2020-12-17T22:58:11Z",
-      "updatedAt": "2021-01-19T19:06:04Z",
+      "updatedAt": "2021-02-20T01:43:00Z",
       "closedAt": null,
       "comments": [
         {
@@ -8627,15 +8627,15 @@
       "id": "MDU6SXNzdWU4MDI1NDE2MDg=",
       "title": "Naive outer_extensions decoding is a DoS risk",
       "url": "https://github.com/tlswg/draft-ietf-tls-esni/issues/378",
-      "state": "OPEN",
+      "state": "CLOSED",
       "author": "davidben",
       "authorAssociation": "CONTRIBUTOR",
       "assignees": [],
       "labels": [],
       "body": "A naive implementation of decoding the inner ClientHello can easily go quadratic when processing outer_extensions. Thus far, nothing in TLS has required searching for O(N) extensions, only O(implemented extensions). It's likely a lot of TLS implementations handle the extensions list linearly most of the time.\r\n\r\nouter_extensions is now the first time you have to search for extensions you may not have implemented. A naive implementation would then go quadratic, which is a server DoS risk. It doesn't need to go quadratic (for instance, you can sort ClientHelloOuter's extensions and then binary search per lookup), but it's probably worth at least calling this out, if not switching to a simpler decoding scheme.\r\n\r\n(For a simpler decoder, we already require CHInner group the compressed extensions consecutively. We could do the same with CHOuter, at which point we only need to reference one byte slice, be it by offset/length or some goofier scheme.)",
       "createdAt": "2021-02-05T23:33:28Z",
-      "updatedAt": "2021-02-16T21:37:31Z",
-      "closedAt": null,
+      "updatedAt": "2021-02-23T01:36:40Z",
+      "closedAt": "2021-02-23T01:36:40Z",
       "comments": [
         {
           "author": "sftcd",
@@ -8664,6 +8664,41 @@
           "body": "Since this is more of an implementation detail, let's just add a warning to handle this responsibly (i.e. the sort and binary search).",
           "createdAt": "2021-02-16T21:37:31Z",
           "updatedAt": "2021-02-16T21:37:31Z"
+        },
+        {
+          "author": "cjpatton",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "Yet another way to address this is with a simple hash map, e.g.: https://github.com/cloudflare/go/blob/cf/src/crypto/tls/ech.go#L652-L768.\r\n\r\nMy vote is to leave the encoding scheme as-is and simply leave a warning.",
+          "createdAt": "2021-02-18T20:14:07Z",
+          "updatedAt": "2021-02-18T20:14:07Z"
+        },
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "\ud83d\udc4d @cjpatton, @cbartle891, could one of you please propose text for that warning?",
+          "createdAt": "2021-02-18T23:13:12Z",
+          "updatedAt": "2021-02-18T23:13:12Z"
+        },
+        {
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "Another DoS risk to be careful of: implementations typically enforce size limits on TLS messages so they aren't forced to buffer 2^24 bytes. Whatever size limit is enforced on ClientHello needs to also be enforced on the inner ClientHello *before* allocating memory for it.\r\n\r\nIn particular, if ClientHelloOuter has a single giant extension, and it is referenced multiple times in OuterExtensions, you can blow up the server's resource usage. (Though I can't think of any case without repeating an extension where the resulting size grows dramatically.)",
+          "createdAt": "2021-02-20T23:11:45Z",
+          "updatedAt": "2021-02-20T23:11:45Z"
+        },
+        {
+          "author": "cbartle891",
+          "authorAssociation": "COLLABORATOR",
+          "body": "Is there any valid reason why an extension would appear multiple times in a ClientHello? If not, maybe we should specify that the server must abort if OuterExtensions references an extension more than once.",
+          "createdAt": "2021-02-22T17:18:47Z",
+          "updatedAt": "2021-02-22T17:18:47Z"
+        },
+        {
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "Seems reasonable. I think the combination of \"no duplicate extensions\" and \"no referencing the ECH extension\" imply that sizeof(ClientHelloInner) < sizeof(ClientHelloOuter).",
+          "createdAt": "2021-02-22T19:50:41Z",
+          "updatedAt": "2021-02-22T19:50:41Z"
         }
       ]
     },
@@ -8679,7 +8714,7 @@
       "labels": [],
       "body": "Assuming #376 lands, we need to decide how long we want this server-chosen identifier to be. There are various operational and privacy considerations at play. For example, shorter identifiers mean that GREASE clients may produce colliding values with higher probability, and the cost of trial decryption on the server may be an overly expensive operational cost for some deployments. Longer identifiers may also mean that using keys as a tracking vector is easier. (But as @ekr has pointed out, ECH does not assume DNS answer integrity, so there are other tracking mechanisms at play.) Let's use this issue to sort out this question. \r\n\r\ncc @davidben, @cjpatton, @martinthomson ",
       "createdAt": "2021-02-08T22:27:58Z",
-      "updatedAt": "2021-02-10T16:36:05Z",
+      "updatedAt": "2021-02-20T01:42:42Z",
       "closedAt": null,
       "comments": [
         {
@@ -8798,6 +8833,121 @@
           "updatedAt": "2021-02-17T01:11:45Z"
         }
       ]
+    },
+    {
+      "number": 384,
+      "id": "MDU6SXNzdWU4MTEzOTk0OTM=",
+      "title": "PSK usage sticks out",
+      "url": "https://github.com/tlswg/draft-ietf-tls-esni/issues/384",
+      "state": "OPEN",
+      "author": "cjpatton",
+      "authorAssociation": "CONTRIBUTOR",
+      "assignees": [
+        "chris-wood"
+      ],
+      "labels": [],
+      "body": "As discussed in #354, there are two real-ECH/grease-ECH differentiators related to the PSK extension we may wish to address.\r\n\r\n1. Real ECH disallows the PSK extension in ClientHelloOuter, whereas grease ECH permits PSK in ClientHello.\r\n2. Real ECH allows PSK in ClientHelloInner. In case of acceptance, the backend server may respond with PSK in ServerHello. The response would appear to be unsolicited. something that would not happen in a grease-ECH or vanilla handshake.\r\n\r\nThe question we will ask ourselves here is if/how to mitigate these differentiators. We might simply say that clients MAY (or SHOULD?) send a dummy PSK in the ClientHello(Outer). This ought to provide sufficient cover.",
+      "createdAt": "2021-02-18T19:38:54Z",
+      "updatedAt": "2021-02-23T01:34:54Z",
+      "closedAt": null,
+      "comments": [
+        {
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "I don't mind a MAY on sending a dummy PSK in case (2), though I don't think it's a good idea for case (1). The case that really matters here is when the outer and inner ClientHello both lack PSKs:\r\n\r\nSuppose the buggy network is sensitive to (1) and only allows ECH extensions when the outer ClientHello has a PSK because it knows those can't be ECH. That network has effectively broken _all_ connections because the only way for the client to get a PSK is to have connected to the server without a PSK at some point.\r\n\r\nSuppose instead the buggy network is sensitive to (2) and breaks if the inner ClientHello has a PSK but the outer does not. The connect will fail, but between single-use tickets and bounded client session caches, the client will quickly exhaust its tickets and get out of case (2). This is a performance issue, but the connections still work. (Though, yeah, adding the option to send a dummy one might help there. *shrug*)",
+          "createdAt": "2021-02-18T22:23:58Z",
+          "updatedAt": "2021-02-18T22:23:58Z"
+        },
+        {
+          "author": "cjpatton",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "I'm not following the following point. Could you elaborate?\r\n\r\n> Suppose the buggy network is sensitive to (1) and only allows ECH extensions when the outer ClientHello has a PSK because it knows those can't be ECH. That network has effectively broken _all_ connections because the only way for the client to get a PSK is to have connected to the server without a PSK at some point.\r\n\r\nIn any case, the case to mitigate (2) seems more compelling than the case to mitigate (1), since (2) would look like non-compliance to an ECH-ignorant network. Would be curious to see what others think.\r\n\r\n\r\n\r\n",
+          "createdAt": "2021-02-19T16:21:25Z",
+          "updatedAt": "2021-02-19T16:21:25Z"
+        },
+        {
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "So I think the benefit of GREASE-like strategies is that broader breakages now are more noticeable than focused breakage later. More noticeable breakage is more likely to be fixed, and less likely to make it to the ecosystem in the first place. This applies to ECH GREASE by saying we want all ClientHellos to look like ECH was deployed, so the network is less likely to develop intolerances.\r\n\r\nDifferences between GREASE ECH and actual ECH thus matter because the network be intolerant to something that we failed to simulate. (1) says that, in actual ECH, all outer ClientHellos have no PSK. In GREASE ECH, some outer ClientHellos have a PSK while some do not. If we were to translate that to actual intolerance, it would mean the network rejects outer ClientHellos without a PSK. But that would break everything, ECH or non-ECH, anyway because clients don't send PSKs the first time[*] they connect to a server. Clients only have PSKs to send the second time, and you can't connect a second time if you didn't connect a first time. Thus, even though (1) is a difference, it doesn't seem that difference prevents us from noticing intolerance.\r\n\r\nAgreed that mitigating (2) is more compelling than mitigating (1).\r\n\r\n[*] First time overall, first time after a restart (if sessions aren't persisted), or first time after a long break (sessions expired).",
+          "createdAt": "2021-02-19T19:35:14Z",
+          "updatedAt": "2021-02-19T19:37:14Z"
+        },
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "I agree that (2) is more important. And I'm fine with a \"MAY/SHOULD send an outer dummy PSK if you are using ECH and have an inner PSK.\" @davidben, if we were to append on a dummy PSK, what do you think would be a suitable length? (Bikeshedding over that should be fun.)\r\n\r\nAs an aside, I wanted to drill in on this point:\r\n\r\n> If we were to translate that to actual intolerance, it would mean the network rejects outer ClientHellos without a PSK. But that would break everything, ECH or non-ECH,\r\n\r\nThis seems true, if we're assuming the the intolerance is \"break the connection,\" which I think is the right interpretation. But it occurs to me that there's a slightly weaker form of misbehavior thats's possible with (1): a network may learn information about when a given client uses ECH. This seems out of scope, but maybe something to keep in mind?",
+          "createdAt": "2021-02-20T01:41:56Z",
+          "updatedAt": "2021-02-20T01:41:56Z"
+        },
+        {
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "Re length, I dunno leave it to the client to choose? \"Probably not very long.\"\r\n\r\nMaking that in scope sounds exceedingly difficult. For instance, for a given server, you might know that tickets issued today start with 12345 (maybe the ID of today's key), but synthesized dummy tickets won't match that.",
+          "createdAt": "2021-02-22T23:26:36Z",
+          "updatedAt": "2021-02-22T23:26:36Z"
+        },
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "> Making that in scope sounds exceedingly difficult. \r\n\r\nYep, no argument there. ",
+          "createdAt": "2021-02-22T23:27:35Z",
+          "updatedAt": "2021-02-22T23:27:35Z"
+        }
+      ]
+    },
+    {
+      "number": 386,
+      "id": "MDU6SXNzdWU4MTI0NzQ2NjQ=",
+      "title": "Fixed-length values should probably be fixed-length",
+      "url": "https://github.com/tlswg/draft-ietf-tls-esni/issues/386",
+      "state": "OPEN",
+      "author": "chris-wood",
+      "authorAssociation": "COLLABORATOR",
+      "assignees": [],
+      "labels": [],
+      "body": "In the `ECHConfigContents` struct, we have the following:\r\n\r\n```\r\n    opaque HpkePublicKey<1..2^16-1>;\r\n    ...\r\n\r\n    struct {\r\n        ...\r\n        HpkeKemId kem_id;\r\n        HpkePublicKey public_key;\r\n        ...\r\n    } HpkeKeyConfig;\r\n```\r\n\r\n`HpkeKeyConfig.public_key` is a serialized HPKE public key. However, these keys have a fixed length (`Npk`). We can remove the length prefix around this value and simple define `HpkePublicKey` like so:\r\n\r\n```\r\nopaque HpkePublicKey[Npk];\r\n```\r\n\r\nParsing shouldn't be an issue, since consuming clients first parse the `HpkeKeyConfig.kem_id`. If this corresponds to an unknown KEM, they can't use the `HpkeKeyConfig` or parent `ECHConfigContents`, and can move onto the next `ECHConfig` in the list to check. \r\n\r\nWe may also do this for `ClientECH`, which length-prefixes the `enc` field (of fixed length `Nenc`), but that might complicate  trial decryption use cases. \r\n\r\nNote that [KeyShareEntry keys](https://tools.ietf.org/html/rfc8446#section-4.2.8) are length-prefixed, but I don't think we need to follow that guidance here. HPKE exposed fixed-length keys for a reason. :-) \r\n\r\ncc @martinthomson ",
+      "createdAt": "2021-02-20T01:30:11Z",
+      "updatedAt": "2021-02-20T01:30:11Z",
+      "closedAt": null,
+      "comments": []
+    },
+    {
+      "number": 387,
+      "id": "MDU6SXNzdWU4MTI0Nzc5NDc=",
+      "title": "Update to HPKE-08",
+      "url": "https://github.com/tlswg/draft-ietf-tls-esni/issues/387",
+      "state": "OPEN",
+      "author": "chris-wood",
+      "authorAssociation": "COLLABORATOR",
+      "assignees": [
+        "chris-wood"
+      ],
+      "labels": [
+        "ready-for-text"
+      ],
+      "body": "This new version of the draft removes the version-vector dependency, so this should be the last time we update the pinned version.",
+      "createdAt": "2021-02-20T01:45:52Z",
+      "updatedAt": "2021-02-23T01:34:47Z",
+      "closedAt": null,
+      "comments": []
+    },
+    {
+      "number": 388,
+      "id": "MDU6SXNzdWU4MTQwMDMyMDg=",
+      "title": "Include changelog going forward",
+      "url": "https://github.com/tlswg/draft-ietf-tls-esni/issues/388",
+      "state": "OPEN",
+      "author": "chris-wood",
+      "authorAssociation": "COLLABORATOR",
+      "assignees": [
+        "chris-wood"
+      ],
+      "labels": [],
+      "body": "Since -09 is the first \"official\" interop target, we should make it easy going forward to track deltas between versions. Let's add a changelog for each revision of the draft to help implementers out.",
+      "createdAt": "2021-02-23T01:09:13Z",
+      "updatedAt": "2021-02-23T01:10:49Z",
+      "closedAt": null,
+      "comments": []
     }
   ],
   "pulls": [
@@ -35574,15 +35724,15 @@
       "authorAssociation": "CONTRIBUTOR",
       "assignees": [],
       "labels": [],
-      "body": "This PR aims to resolve the discussion in issue #354 by:\r\n\r\n1. clarifying goals/non-goals for \"don't stick out\";\r\n2. creating an OPEN ISSUE for a future experiment that assesses the deployability of the GREASE extension; and\r\n3. creating a TODO to address differentiators based on session resumption and the PSK extension.",
+      "body": "This PR aims to resolve the discussion in issue #354 by:\r\n\r\n1. clarifying goals/non-goals for \"don't stick out\"; and\r\n2. creating a TODO for a future experiment that assesses the deployability of the GREASE extension.\r\n\r\nDealing with PSK sticking out has been assigned to #384.",
       "createdAt": "2021-02-15T21:35:45Z",
-      "updatedAt": "2021-02-17T15:49:52Z",
+      "updatedAt": "2021-02-18T20:00:23Z",
       "baseRepository": "tlswg/draft-ietf-tls-esni",
       "baseRefName": "master",
       "baseRefOid": "c1a3d71f20f6fa69da00fa5ee7fa1a11abc291de",
       "headRepository": "cjpatton/draft-ietf-tls-esni",
       "headRefName": "dont-stick-out",
-      "headRefOid": "fc1c47c93a7f62d8ad3baa155e55af08a605844e",
+      "headRefOid": "30e22a2d4096854138fee6d6852c2445994e4060",
       "closedAt": null,
       "mergedAt": null,
       "mergedBy": null,
@@ -35605,7 +35755,7 @@
               "originalPosition": 93,
               "body": "Is this an open issue in the sense that the data from that experiment needs to be in this draft? If not, I'm not sure it should be mentioned here.\r\n\r\nEDIT: Never mind, I see that you mention the experiment later. This seems like material for a different draft? Like, about the ramifications of implementations? Or rationale for the design?",
               "createdAt": "2021-02-15T21:45:54Z",
-              "updatedAt": "2021-02-15T21:49:30Z"
+              "updatedAt": "2021-02-18T19:58:15Z"
             }
           ]
         },
@@ -35638,31 +35788,31 @@
               "originalPosition": 138,
               "body": "This isn't clear to me. I'd just leave this as an open issue without a decision one way or the other.\r\n\r\n```suggestion\r\n   #<new issue ID>, this may be mitigated with a future change.]]\r\n```",
               "createdAt": "2021-02-16T23:19:49Z",
-              "updatedAt": "2021-02-16T23:25:24Z"
+              "updatedAt": "2021-02-18T19:58:15Z"
             },
             {
               "originalPosition": 117,
               "body": "```suggestion\r\nwhether the attacker is passive or active (see {{goals}}).\r\n```\r\n\r\nI'd suggest dropping this unless we can point to some evidence. Maybe @davidben has one?",
               "createdAt": "2021-02-16T23:20:32Z",
-              "updatedAt": "2021-02-16T23:25:24Z"
+              "updatedAt": "2021-02-18T19:58:15Z"
             },
             {
               "originalPosition": 93,
               "body": "I think the point is that we will first run an experiment -- before this document is published as an RFC -- and then update this text with the results. Perhaps this helps?\r\n\r\n```suggestion\r\nthe protocol and measuring its impact. [[TODO: Document results from preliminary experiment that\r\n```",
               "createdAt": "2021-02-16T23:23:00Z",
-              "updatedAt": "2021-02-16T23:25:24Z"
+              "updatedAt": "2021-02-18T19:58:15Z"
             },
             {
               "originalPosition": 7,
               "body": "Let's revert this. We don't yet have consensus as to whether or not we want (or need) to mitigate this particular differentiator. (Please also file a separate issue focused specifically on this issue that we can use to track discussion!)",
               "createdAt": "2021-02-16T23:24:04Z",
-              "updatedAt": "2021-02-16T23:25:24Z"
+              "updatedAt": "2021-02-18T19:58:15Z"
             },
             {
               "originalPosition": 7,
               "body": "(#354 seems too generic to be useful for converging on consensus here, I think.)",
               "createdAt": "2021-02-16T23:24:46Z",
-              "updatedAt": "2021-02-16T23:25:24Z"
+              "updatedAt": "2021-02-18T19:58:15Z"
             }
           ]
         },
@@ -35682,7 +35832,100 @@
               "originalPosition": 93,
               "body": "Yup, that's what I mean!",
               "createdAt": "2021-02-17T15:49:52Z",
-              "updatedAt": "2021-02-17T15:49:52Z"
+              "updatedAt": "2021-02-18T19:58:15Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTkzNTg0ODM1",
+          "commit": {
+            "abbreviatedOid": "fc1c47c"
+          },
+          "author": "cjpatton",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-18T19:44:38Z",
+          "updatedAt": "2021-02-18T19:44:38Z",
+          "comments": [
+            {
+              "originalPosition": 117,
+              "body": "There are some amazing examples [here](https://mailarchive.ietf.org/arch/msg/tls/i9blmvG2BEPf1s1OJkenHknRw9c/):\r\n> We found that Firepower middleboxes in \"Decrypt - Resign\" mode\r\nterminate TLS connections, but do not send a compliant ClientHello:\r\nThey modify the original ClientHello to remove unknown ciphersuites,\r\nEMS, and NPN, but incorrectly forward most other fields from the\r\noriginal ClientHello, including unknown extensions (supported_versions\r\nand key_shares), and the client random. This breaks TLS 1.3 servers.\r\nAdditionally, these devices forward the server random rather than\r\ngenerating their own (which will break when deploying the TLS 1.3\r\nanti-downgrade feature), and forward unknown signature algorithms\r\n(which will break when deploying, e.g., Ed25519).\r\n",
+              "createdAt": "2021-02-18T19:44:38Z",
+              "updatedAt": "2021-02-18T19:58:15Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTkzNTg2MTQ3",
+          "commit": {
+            "abbreviatedOid": "fc1c47c"
+          },
+          "author": "cjpatton",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-18T19:46:12Z",
+          "updatedAt": "2021-02-18T19:46:12Z",
+          "comments": [
+            {
+              "originalPosition": 7,
+              "body": "Done. I also added a reference to #384.",
+              "createdAt": "2021-02-18T19:46:12Z",
+              "updatedAt": "2021-02-18T19:58:15Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTkzNTkwNTMy",
+          "commit": {
+            "abbreviatedOid": "0b5bc28"
+          },
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-18T19:52:00Z",
+          "updatedAt": "2021-02-18T19:52:01Z",
+          "comments": [
+            {
+              "originalPosition": 117,
+              "body": "Can we just cite this email? That would be fine for me!",
+              "createdAt": "2021-02-18T19:52:00Z",
+              "updatedAt": "2021-02-18T19:58:15Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTkzNTkwNTcx",
+          "commit": {
+            "abbreviatedOid": "0b5bc28"
+          },
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "state": "APPROVED",
+          "body": "",
+          "createdAt": "2021-02-18T19:52:03Z",
+          "updatedAt": "2021-02-18T19:52:03Z",
+          "comments": []
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTkzNTk3MDE1",
+          "commit": {
+            "abbreviatedOid": "30e22a2"
+          },
+          "author": "cjpatton",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-18T20:00:23Z",
+          "updatedAt": "2021-02-18T20:00:23Z",
+          "comments": [
+            {
+              "originalPosition": 117,
+              "body": "Cited references in Section D.4 of RFC 8446.",
+              "createdAt": "2021-02-18T20:00:23Z",
+              "updatedAt": "2021-02-18T20:00:23Z"
             }
           ]
         }
@@ -35739,6 +35982,207 @@
           "body": "Thanks!",
           "createdAt": "2021-02-17T20:19:11Z",
           "updatedAt": "2021-02-17T20:19:11Z",
+          "comments": []
+        }
+      ]
+    },
+    {
+      "number": 385,
+      "id": "MDExOlB1bGxSZXF1ZXN0NTc2NTU4Mzc5",
+      "title": "Add note about denial-of-service vulnerability",
+      "url": "https://github.com/tlswg/draft-ietf-tls-esni/pull/385",
+      "state": "MERGED",
+      "author": "cjpatton",
+      "authorAssociation": "CONTRIBUTOR",
+      "assignees": [],
+      "labels": [],
+      "body": "A naive implementation of EncodedClientHelloInner decoding would require\r\na quadratic amount of work, which clients might be able to  exploit to\r\nDoS the server. This adds an implementation note intended to guide\r\nservers to mitigate this problem.\r\n\r\nResolves #378.",
+      "createdAt": "2021-02-19T16:05:44Z",
+      "updatedAt": "2021-02-23T01:36:40Z",
+      "baseRepository": "tlswg/draft-ietf-tls-esni",
+      "baseRefName": "master",
+      "baseRefOid": "b7757a11639f4b6ea77d97477ee39c2398dcc9a5",
+      "headRepository": "cjpatton/draft-ietf-tls-esni",
+      "headRefName": "decode-cho-risk",
+      "headRefOid": "315fe49aaaa0047a70de8fe64b49c715da1a9e99",
+      "closedAt": "2021-02-23T01:36:40Z",
+      "mergedAt": "2021-02-23T01:36:40Z",
+      "mergedBy": "chris-wood",
+      "mergeCommit": {
+        "oid": "1aa4a2e222c77d1f29cb273ad71e7fcfe890ac53"
+      },
+      "comments": [
+        {
+          "author": "cjpatton",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "cc/ @davidben :)",
+          "createdAt": "2021-02-19T16:06:03Z",
+          "updatedAt": "2021-02-19T16:06:03Z"
+        },
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "@davidben let's do that change in a separate PR for now. ",
+          "createdAt": "2021-02-23T01:36:36Z",
+          "updatedAt": "2021-02-23T01:36:36Z"
+        }
+      ],
+      "reviews": [
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTk0NTA3OTg0",
+          "commit": {
+            "abbreviatedOid": "b0da5cd"
+          },
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-19T19:41:25Z",
+          "updatedAt": "2021-02-19T19:43:14Z",
+          "comments": [
+            {
+              "originalPosition": 7,
+              "body": "Nit: O(N\\*M) and O(N\\*log(M)), since it's not exact? (And since O captures \"in the worst case\", you could probably even omit it then.)",
+              "createdAt": "2021-02-19T19:41:25Z",
+              "updatedAt": "2021-02-22T16:34:21Z"
+            },
+            {
+              "originalPosition": 14,
+              "body": "You want to represent the ClientHelloOuter's extensions this way, not the OuterExtensions, right? OuterExtensions is the structure stored in the outer_extensions extension. (Gosh, so many variations on \"outer\" and \"extensions\"!)",
+              "createdAt": "2021-02-19T19:43:10Z",
+              "updatedAt": "2021-02-22T16:34:21Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTk0Nzc4Mjc5",
+          "commit": {
+            "abbreviatedOid": "b0da5cd"
+          },
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "state": "APPROVED",
+          "body": "LGTM pending nits and suggestions from @davidben.",
+          "createdAt": "2021-02-20T19:17:18Z",
+          "updatedAt": "2021-02-20T19:19:33Z",
+          "comments": [
+            {
+              "originalPosition": 7,
+              "body": "```suggestion\r\nClientHelloOuter. The naive strategy would require O(N\\*M) comparisons in the worst\r\n```",
+              "createdAt": "2021-02-20T19:17:18Z",
+              "updatedAt": "2021-02-22T16:34:21Z"
+            },
+            {
+              "originalPosition": 13,
+              "body": "```suggestion\r\ncan be improved to O(N\\*log(M)) by sorting the OuterExtensions and using binary\r\n```",
+              "createdAt": "2021-02-20T19:17:28Z",
+              "updatedAt": "2021-02-22T16:34:21Z"
+            },
+            {
+              "originalPosition": 11,
+              "body": "```suggestion\r\nexploit this behavior in order to cause excessive work for the server.\r\nThis problem can be mitigated by representing OuterExtensions in a way\r\n```",
+              "createdAt": "2021-02-20T19:18:07Z",
+              "updatedAt": "2021-02-22T16:34:21Z"
+            },
+            {
+              "originalPosition": 12,
+              "body": "```suggestion\r\nthat allows it to be searched more quickly. For example, the worst case runtime\r\n```",
+              "createdAt": "2021-02-20T19:18:15Z",
+              "updatedAt": "2021-02-22T16:34:21Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTk1NTM0OTY0",
+          "commit": {
+            "abbreviatedOid": "b0da5cd"
+          },
+          "author": "cjpatton",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-22T16:28:01Z",
+          "updatedAt": "2021-02-22T16:28:02Z",
+          "comments": [
+            {
+              "originalPosition": 7,
+              "body": "Done.",
+              "createdAt": "2021-02-22T16:28:02Z",
+              "updatedAt": "2021-02-22T16:34:21Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTk1NTM4MTQx",
+          "commit": {
+            "abbreviatedOid": "b0da5cd"
+          },
+          "author": "cjpatton",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-22T16:30:52Z",
+          "updatedAt": "2021-02-22T16:30:52Z",
+          "comments": [
+            {
+              "originalPosition": 14,
+              "body": "I was thinking it would be better to pre-sort OuterExtensions, since presumably M << N.",
+              "createdAt": "2021-02-22T16:30:52Z",
+              "updatedAt": "2021-02-22T16:34:21Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTk1NTM5OTc1",
+          "commit": {
+            "abbreviatedOid": "b0da5cd"
+          },
+          "author": "cjpatton",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-22T16:32:32Z",
+          "updatedAt": "2021-02-22T16:32:32Z",
+          "comments": [
+            {
+              "originalPosition": 11,
+              "body": "Done, I also added \", possibly making it unavailable.\" (Worth mentioning since it's the goal of the attacker.)",
+              "createdAt": "2021-02-22T16:32:32Z",
+              "updatedAt": "2021-02-22T16:34:21Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTk1NTQxMTU4",
+          "commit": {
+            "abbreviatedOid": "b0da5cd"
+          },
+          "author": "cjpatton",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-22T16:33:42Z",
+          "updatedAt": "2021-02-22T16:33:42Z",
+          "comments": [
+            {
+              "originalPosition": 14,
+              "body": "O(M log(M)) instead of O(N log(N)) seems better for sorting.",
+              "createdAt": "2021-02-22T16:33:42Z",
+              "updatedAt": "2021-02-22T16:34:21Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTk1NzI2NTE3",
+          "commit": {
+            "abbreviatedOid": "315fe49"
+          },
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "APPROVED",
+          "body": "LGTM, though I guess we should either update it to resolve this other vector, or just make the PR not quite close the issue yet:\r\nhttps://github.com/tlswg/draft-ietf-tls-esni/issues/378#issuecomment-782763490\r\n\r\n(This other vector is even more fun because you can make a quadratically-*sized* ClientHello!)",
+          "createdAt": "2021-02-22T19:53:05Z",
+          "updatedAt": "2021-02-22T19:53:05Z",
           "comments": []
         }
       ]
