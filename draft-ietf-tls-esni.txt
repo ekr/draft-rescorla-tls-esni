@@ -5,11 +5,11 @@
 tls                                                          E. Rescorla
 Internet-Draft                                                RTFM, Inc.
 Intended status: Standards Track                                  K. Oku
-Expires: 21 August 2021                                           Fastly
+Expires: 27 August 2021                                           Fastly
                                                              N. Sullivan
                                                                C.A. Wood
                                                               Cloudflare
-                                                        17 February 2021
+                                                        23 February 2021
 
 
                        TLS Encrypted Client Hello
@@ -35,7 +35,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 21 August 2021.
+   This Internet-Draft will expire on 27 August 2021.
 
 Copyright Notice
 
@@ -491,6 +491,20 @@ Table of Contents
    The "ech_outer_extensions" extension is only used for compressing the
    ClientHelloInner.  It MUST NOT be sent in either ClientHelloOuter or
    ClientHelloInner.
+
+   Note that it is possible to implement decoding of the
+   EncodedClientHelloInner in a way that creates a denial-of-service
+   vulnerability.  Specifically, the server needs to check that each
+   extension in the OuterExtensions list appears in the
+   ClientHelloOuter.  The naive strategy would require O(N*M) time,
+   where N is the number of extensions in the ClientHelloOuter and M is
+   the number of extensions in the OuterExtensions list.  Malicious
+   clients could exploit this behavior in order to cause excessive work
+   for the server, possibly making it unavailable.  This problem can be
+   mitigated by representing OuterExtensions in a way that allows it to
+   be searched more quickly.  For example, the runtime can be improved
+   to O(N*log(M)) by sorting the OuterExtensions and using binary search
+   to access it.
 
 5.2.  Authenticating the ClientHelloOuter
 
@@ -1664,86 +1678,88 @@ Table of Contents
               and parameter specification via the DNS (DNS SVCB and
               HTTPS RRs)", Work in Progress, Internet-Draft, draft-ietf-
               dnsop-svcb-https-03, 17 February 2021,
-              <https://www.ietf.org/archive/id/draft-ietf-dnsop-svcb-
-              https-03.txt>.
+              <https://datatracker.ietf.org/doc/html/draft-ietf-dnsop-
+              svcb-https-03.txt>.
 
    [I-D.ietf-tls-exported-authenticator]
               Sullivan, N., "Exported Authenticators in TLS", Work in
               Progress, Internet-Draft, draft-ietf-tls-exported-
               authenticator-14, 25 January 2021,
-              <https://www.ietf.org/archive/id/draft-ietf-tls-exported-
-              authenticator-14.txt>.
+              <https://datatracker.ietf.org/doc/html/draft-ietf-tls-
+              exported-authenticator-14.txt>.
 
    [I-D.irtf-cfrg-hpke]
               Barnes, R. L., Bhargavan, K., Lipp, B., and C. A. Wood,
               "Hybrid Public Key Encryption", Work in Progress,
               Internet-Draft, draft-irtf-cfrg-hpke-08, 15 February 2021,
-              <https://www.ietf.org/archive/id/draft-irtf-cfrg-hpke-
-              08.txt>.
+              <https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-
+              hpke-08.txt>.
 
    [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
               Requirement Levels", BCP 14, RFC 2119,
               DOI 10.17487/RFC2119, March 1997,
-              <https://www.rfc-editor.org/info/rfc2119>.
+              <https://datatracker.ietf.org/doc/html/rfc2119>.
 
    [RFC7685]  Langley, A., "A Transport Layer Security (TLS) ClientHello
               Padding Extension", RFC 7685, DOI 10.17487/RFC7685,
-              October 2015, <https://www.rfc-editor.org/info/rfc7685>.
+              October 2015,
+              <https://datatracker.ietf.org/doc/html/rfc7685>.
 
    [RFC7918]  Langley, A., Modadugu, N., and B. Moeller, "Transport
               Layer Security (TLS) False Start", RFC 7918,
               DOI 10.17487/RFC7918, August 2016,
-              <https://www.rfc-editor.org/info/rfc7918>.
+              <https://datatracker.ietf.org/doc/html/rfc7918>.
 
    [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
               2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
-              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+              May 2017, <https://datatracker.ietf.org/doc/html/rfc8174>.
 
    [RFC8446]  Rescorla, E., "The Transport Layer Security (TLS) Protocol
               Version 1.3", RFC 8446, DOI 10.17487/RFC8446, August 2018,
-              <https://www.rfc-editor.org/info/rfc8446>.
+              <https://datatracker.ietf.org/doc/html/rfc8446>.
 
 13.2.  Informative References
 
    [I-D.kazuho-protected-sni]
               Oku, K., "TLS Extensions for Protecting SNI", Work in
               Progress, Internet-Draft, draft-kazuho-protected-sni-00,
-              18 July 2017, <https://www.ietf.org/archive/id/draft-
-              kazuho-protected-sni-00.txt>.
+              18 July 2017, <https://datatracker.ietf.org/doc/html/
+              draft-kazuho-protected-sni-00.txt>.
 
    [RFC7301]  Friedl, S., Popov, A., Langley, A., and E. Stephan,
               "Transport Layer Security (TLS) Application-Layer Protocol
               Negotiation Extension", RFC 7301, DOI 10.17487/RFC7301,
-              July 2014, <https://www.rfc-editor.org/info/rfc7301>.
+              July 2014,
+              <https://datatracker.ietf.org/doc/html/rfc7301>.
 
    [RFC7858]  Hu, Z., Zhu, L., Heidemann, J., Mankin, A., Wessels, D.,
               and P. Hoffman, "Specification for DNS over Transport
               Layer Security (TLS)", RFC 7858, DOI 10.17487/RFC7858, May
-              2016, <https://www.rfc-editor.org/info/rfc7858>.
+              2016, <https://datatracker.ietf.org/doc/html/rfc7858>.
 
    [RFC7924]  Santesson, S. and H. Tschofenig, "Transport Layer Security
               (TLS) Cached Information Extension", RFC 7924,
               DOI 10.17487/RFC7924, July 2016,
-              <https://www.rfc-editor.org/info/rfc7924>.
+              <https://datatracker.ietf.org/doc/html/rfc7924>.
 
    [RFC8094]  Reddy, T., Wing, D., and P. Patil, "DNS over Datagram
               Transport Layer Security (DTLS)", RFC 8094,
               DOI 10.17487/RFC8094, February 2017,
-              <https://www.rfc-editor.org/info/rfc8094>.
+              <https://datatracker.ietf.org/doc/html/rfc8094>.
 
    [RFC8484]  Hoffman, P. and P. McManus, "DNS Queries over HTTPS
               (DoH)", RFC 8484, DOI 10.17487/RFC8484, October 2018,
-              <https://www.rfc-editor.org/info/rfc8484>.
+              <https://datatracker.ietf.org/doc/html/rfc8484>.
 
    [RFC8701]  Benjamin, D., "Applying Generate Random Extensions And
               Sustain Extensibility (GREASE) to TLS Extensibility",
               RFC 8701, DOI 10.17487/RFC8701, January 2020,
-              <https://www.rfc-editor.org/info/rfc8701>.
+              <https://datatracker.ietf.org/doc/html/rfc8701>.
 
    [RFC8744]  Huitema, C., "Issues and Requirements for Server Name
               Identification (SNI) Encryption in TLS", RFC 8744,
               DOI 10.17487/RFC8744, July 2020,
-              <https://www.rfc-editor.org/info/rfc8744>.
+              <https://datatracker.ietf.org/doc/html/rfc8744>.
 
 Appendix A.  Alternative SNI Protection Designs
 
