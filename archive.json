@@ -1,6 +1,6 @@
 {
   "magic": "E!vIA5L86J2I",
-  "timestamp": "2021-02-23T01:36:57.244328+00:00",
+  "timestamp": "2021-02-24T15:19:37.982664+00:00",
   "repo": "tlswg/draft-ietf-tls-esni",
   "labels": [
     {
@@ -8488,7 +8488,7 @@
       "labels": [],
       "body": "I wanted to jot this down before the holidays, in advance of writing a more rigorous PR. This is a proposal to go fix all our HRR problems in one swoop (#233, #373, #358, and #333).\r\n\r\nFirst, whatever our \"don't stick out\" goals are (#354), sticking out on true HRR flows is pretty much hopeless if the attacker is allowed to make a second connection and probe server behavior: replay the first ClientHello and then perturb the second ClientHello's ciphertext. The server can't change its mind after the fact. So I'm going to intentionally give up on that, which means fixing #358 is possible. The proposal is thus:\r\n\r\n* The client sends ClientHelloOuter1 and ClientHelloInner1 as in the current document.\r\n* If client-facing server accepts ECH, it forwards ClientHelloInner1 to the backend server, as before.\r\n* If the backend server sends HelloRetryRequest in response, call this HelloRetryRequestInner.\r\n* The backend server constructs HelloRetryRequestOuter containing the following:\r\n  * An encrypted_client_hello extension with the HelloRetryRequestInner, encrypted with the HPKE context (see open questions).\r\n  * Optionally, a cookie extension with the outer cookie (fixes #333)\r\n  * No other extensions are allowed, though future extensions, if solicited by ClientHelloOuter1 may change this. (See open questions.)\r\n* HelloRetryRequests signals to the client whether ECH was accepted or not (fixes #373, avoids #316) by the presence of the encrypted_client_hello extension:\r\n* If there is no encrypted_client_hello extension, the client computes ClientHello2 based on ClientHelloOuter1 and HelloRetryRequest. There is no more ClientHelloInner2. We're not doing ECH, and HRR may not even be valid for CHI2 (the #316 mess). Instead, it blindly copies over ClientHelloOuter1's extension. This is a waste of bytes, but fixes #358.\r\n* If there is an encrypted_client_hello extension...\r\n  * First, the client decrypts HelloRetryRequestInner. If it fails, it sends decrypt_failure and aborts. GREASE ECH is considered to always fail to decrypt and always sends decrypt_failure.\r\n  * Otherwise, the client computes ClientHelloInner2 based on HelloRetryRequestInner in the usual way, handling errors in the usual way.\r\n  * The client constructs ClientHelloOuter2 containing the encrypted ClientHelloInner2 and HelloRetryRequestOuter.cookie. We know the server is accepting ECH at this point, so there is no need to send much of any other fields. See open questions below.\r\n* HRR or not, the ServerHello is required to have an ECH acceptance confirmation as usual. The client processes it as follows:\r\n  * If there was no HRR, do what the document currently says and figure out ECH acceptance here.\r\n  * If there was an HRR, you already know ECH accept or reject. If ECH reject, move and and complete the outer handshake without any fuss. The inner handshake terminated too early to compute handshake_secret anyway. If ECH accept, check the acceptance confirmation and send illegal_parameter or so if it's wrong. (See open questions below)\r\n\r\nI believe this solves our various HRR problems:\r\n\r\n* The client-facing server can send an HRR cookie without coordinating with the inner handshake (#333).\r\n* The client does not need to evaluate one HRR against two different ClientHellos, so the two ClientHellos can have arbitrarily different preferences (#233, #316).\r\n* The client knows ECH accept at the first server response, so it does not need to construct two different second ClientHellos (#373).\r\n* The ECH extension only changes when solicited (#358).\r\n\r\nThoughts?\r\n\r\n### Open questions\r\n\r\n#### How and should we encrypt HelloRetryRequestInner?\r\n\r\nThe above sketch encrypts HRRInner, but HPKE only allows the sender to encrypt. This is easy to specify though: use the exporters to derive another AEAD key and toss it into the HPKE cipher suite's AEAD.\r\n\r\nAs for why encrypt it, things should still work if we stick it in the clear. But we may want to for two reasons:\r\n\r\n1. Like backend server tickets, backend server cookies are, today, not particularly constrained w.r.t. what they reveal. A ticket or cookie from one TLS implementation may be different from the other, and Split Mode servers may have multiple backend implementations in their anonymity set. It may also vary for other reasons. NewSessionTicket is encrypted, as is the pre_shared_key extension, so we've solved it for tickets. ClientHello.cookie is also encrypted, which leaves HRR.cookie. Encrypting HRRInner fills that in.\r\n2. If HRRInner is not authenticated by the HPKE context, an attacker can try to distinguish GREASE by sending a fake cleartext HRRInner and seeing how the client responds. Authenticating HRRInner means you cannot spoof an inner HRR flow.\r\n\r\nWhether the second property is worthwhile is unclear (https://github.com/tlswg/draft-ietf-tls-esni/issues/354#issuecomment-743924431), but I think the first property is valuable, at which point we get the second anyway.\r\n\r\n#### Other HelloRetryRequestOuter extensions? What is ClientHelloOuter2?\r\n\r\nThis design avoids #316 by assembling a cursory ClientHelloOuter2, rather than actually trying to continue the outer handshake. We would need to decide how to do that. I can think of a few possibilities:\r\n\r\n1. Simply specify throwaway values for all the non-extension fields and declare ClientHelloOuter2 contains exactly two extensions, an optional cookie and encrypted_client_hello. EncodedClientHelloInner2 does not bother with outer_extensions because there is nothing to compress.\r\n2. Make up a new message type to avoid the throwaway fields.\r\n3. ~~Compute an actual ClientHelloOuter2, following RFC8446, based on ClientHelloOuter1 and HelloRetryRequestOuter. If HelloRetryRequestOuter wants to request new key_shares, that's fine. it's just pointless.~~\r\n\r\nI don't like option 3. It's conceptually kinda clever, but adds unnecessary fuss to the protocol. Consider a client which sends CHO1.key_share == CHI1.key_share and compresses them. Key share preferences are rarely secret and this avoids doubling up potentially large post-quantum values.\r\n\r\nThe backend server now requests HRR because it wanted a different key share. So CHI2.key_share != CHI1.key_share and is based on HRRI.key_share. But the client-facing server probably did the straightforward thing and didn't send HRRO.key_share because there's no point. It'll never process CHO2.\r\n\r\nOption 3 would then require that CHO2.key_share == CHO1.key_share because HRRO did not request a change. That means CHO2.key_share != CHI2.key_share and the client must waste a lot of bytes sending two of them. In contrast, options 1 and 2 say that CHO2.key_share doesn't exist anyway, so we only ever send one key share.\r\n\r\nIt also adds implementation complexity to the client, which now needs to evaluate two different full-featured HRRs in one handshake, despite it being unused.\r\n\r\nOption 1 and 2 are basically equivalent, though it's worth noting that HRRO and CHO2 do not _quite_ have the same rules as anymore, so whether we want to stick them in the same message type is interesting...\r\n\r\n#### SH.random acceptance signal after HRR?\r\n\r\nAfter HRR, the SH.random acceptance signal doesn't do anything. We could just as easily omit it, because the client has already gotten the signal. The above sketch keeps it in, mostly for consistency's sake: right now we require that backend servers support the ech_is_inner extension. Getting this wrong will be noticed because the client will not successfully complete the connection. If we omit the acceptance signal in HRR flows, the client will no longer consistently notice. As long as we have this requirement, enforcing it uniformly is more robust, so I'm thinking we keep it in there.\r\n\r\n#### Copy or omit CH2.encrypted_client_hello on reject?\r\n\r\nThis sketch says to copy CH2.encrypted_client_hello on ECH reject. This is a waste of bytes but retains compatibility with RFC8446's rules. In particular, we know of a compatibility issue in #358. It seemed from the WG discussion we generally think the RFC8446 rules are wrong, so we could intentionally break them and drop the extension.\r\n\r\nMy inclination is we should try to get the rule changed and implementations fixed, but maybe that should happen separately from ECH and we copy it for now.",
       "createdAt": "2020-12-17T22:58:11Z",
-      "updatedAt": "2021-02-20T01:43:00Z",
+      "updatedAt": "2021-02-24T04:34:32Z",
       "closedAt": null,
       "comments": [
         {
@@ -8553,6 +8553,13 @@
           "body": "I'm sold as well. I'd say this issue is ready for text.",
           "createdAt": "2021-01-19T19:06:04Z",
           "updatedAt": "2021-01-19T19:06:04Z"
+        },
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "@davidben, when do you think you can get to a PR for this? ",
+          "createdAt": "2021-02-24T04:34:31Z",
+          "updatedAt": "2021-02-24T04:34:31Z"
         }
       ]
     },
@@ -8627,15 +8634,15 @@
       "id": "MDU6SXNzdWU4MDI1NDE2MDg=",
       "title": "Naive outer_extensions decoding is a DoS risk",
       "url": "https://github.com/tlswg/draft-ietf-tls-esni/issues/378",
-      "state": "CLOSED",
+      "state": "OPEN",
       "author": "davidben",
       "authorAssociation": "CONTRIBUTOR",
       "assignees": [],
       "labels": [],
       "body": "A naive implementation of decoding the inner ClientHello can easily go quadratic when processing outer_extensions. Thus far, nothing in TLS has required searching for O(N) extensions, only O(implemented extensions). It's likely a lot of TLS implementations handle the extensions list linearly most of the time.\r\n\r\nouter_extensions is now the first time you have to search for extensions you may not have implemented. A naive implementation would then go quadratic, which is a server DoS risk. It doesn't need to go quadratic (for instance, you can sort ClientHelloOuter's extensions and then binary search per lookup), but it's probably worth at least calling this out, if not switching to a simpler decoding scheme.\r\n\r\n(For a simpler decoder, we already require CHInner group the compressed extensions consecutively. We could do the same with CHOuter, at which point we only need to reference one byte slice, be it by offset/length or some goofier scheme.)",
       "createdAt": "2021-02-05T23:33:28Z",
-      "updatedAt": "2021-02-23T01:36:40Z",
-      "closedAt": "2021-02-23T01:36:40Z",
+      "updatedAt": "2021-02-23T01:44:33Z",
+      "closedAt": null,
       "comments": [
         {
           "author": "sftcd",
@@ -8699,6 +8706,13 @@
           "body": "Seems reasonable. I think the combination of \"no duplicate extensions\" and \"no referencing the ECH extension\" imply that sizeof(ClientHelloInner) < sizeof(ClientHelloOuter).",
           "createdAt": "2021-02-22T19:50:41Z",
           "updatedAt": "2021-02-22T19:50:41Z"
+        },
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "Keeping this opening to track @davidben's and @sftcd's comments on CH sizes. @sftcd, could you please send a PR if you have cycles?",
+          "createdAt": "2021-02-23T01:37:42Z",
+          "updatedAt": "2021-02-23T01:44:33Z"
         }
       ]
     },
@@ -8948,6 +8962,37 @@
       "updatedAt": "2021-02-23T01:10:49Z",
       "closedAt": null,
       "comments": []
+    },
+    {
+      "number": 389,
+      "id": "MDU6SXNzdWU4MTQxNDU1MjM=",
+      "title": "Public name rewriting",
+      "url": "https://github.com/tlswg/draft-ietf-tls-esni/issues/389",
+      "state": "OPEN",
+      "author": "martinthomson",
+      "authorAssociation": "CONTRIBUTOR",
+      "assignees": [],
+      "labels": [],
+      "body": "Is there any sense in having the server validate the value of the server name indication extension in the outer ClientHello?  It seems like it might help avoid a trivial attack on DNS that might otherwise pass without notice or alarm.  That is, an attack that copies the DNS QNAME in the public_name field.  \r\n\r\nThere are various ways in which this might fail, but none of the scenarios that I can think of result in anything that a client or server might recognize as being alarming.\r\n\r\nIt is easy to detect and prevent this sort of interference: the client-facing server checks that the SNI matches the value it expects from the ECHConfig that has been selected.  If the config might have changed, such that multiple values are valid, then the server can allow for that, but generally there will be just one valid value.",
+      "createdAt": "2021-02-23T06:08:09Z",
+      "updatedAt": "2021-02-23T15:13:14Z",
+      "closedAt": null,
+      "comments": [
+        {
+          "author": "sftcd",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "\nHiya,\n\nOn 23/02/2021 06:08, Martin Thomson wrote:\n> Is there any sense in having the server validate the value of the\n> server name indication extension in the outer ClientHello?  \n\nI think that check ought, at best, be a MAY, and not a\nMUST. The reason being to support non-browser clients,\nand as a possible additional hedge for circumvention\ntools (that may also be non-browser clients). I also\nsuspect, but don't know, that omitting such checks might\nimprove some hosting scenarios that could otherwise be\na pain - where the hoster's lookup of any sni value\nis an expensive DB access to load the right key pair\nand cert. (Sure, that could be optimised but then we'd\nbe adding yet more complexity to ECH deployment, which\nis worse than even all the complexity we've added to\nimplementation;-)\n\nFor example, when we've done work on curl, we allow\nan optional name on the command line that then overrides\nthe ECHConfig.public_name. I don't see any reason to\nprevent that TBH. And I reckon it could enable some\npossibly interesting use-cases there's no reason for\nus to prevent.\n\n> It seems\n> like it might help avoid a trivial attack on DNS that might otherwise\n> pass without notice or alarm.  That is, an attack that copies the DNS\n> QNAME in the public_name field.\n\nI'd have no problem if we said \"if outerCH.sni==innerCH.sni\"\nthen ignore the innerCH, or something similar. But it ought\nbe valid, and maybe even encouraged, to ignore the sni from\nthe outerCH, when the innerCH works.\n\n> There are various ways in which this might fail, but none of the\n> scenarios that I can think of result in anything that a client or\n> server might recognize as being alarming.\n> \n> It is easy to detect and prevent this sort of interference: the\n> client-facing server checks that the SNI matches the value it expects\n> from the ECHConfig that has been selected.  If the config might have\n> changed, such that multiple values are valid, then the server can\n> allow for that, but generally there will be just one valid value.\n\nAgain, I don't see sufficient benefit, so would rather keep\nthe flexibility and easier deployment of omitting that.\n\nCheers,\nS.\n\n\n",
+          "createdAt": "2021-02-23T13:05:34Z",
+          "updatedAt": "2021-02-23T13:05:34Z"
+        },
+        {
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "The entire ECHConfig is also bound into the decryption, so if the DNS is messing with ECHConfigs, you won't end up negotiating ECH. Copying the QNAME into the public name probably will successfully bounce ECH off via the recovery flow, but the DNS could just as easily have dropped the ECHConfig itself.",
+          "createdAt": "2021-02-23T15:13:14Z",
+          "updatedAt": "2021-02-23T15:13:14Z"
+        }
+      ]
     }
   ],
   "pulls": [
