@@ -5,11 +5,11 @@
 tls                                                          E. Rescorla
 Internet-Draft                                                RTFM, Inc.
 Intended status: Standards Track                                  K. Oku
-Expires: 27 August 2021                                           Fastly
+Expires: 28 August 2021                                           Fastly
                                                              N. Sullivan
                                                                C.A. Wood
                                                               Cloudflare
-                                                        23 February 2021
+                                                        24 February 2021
 
 
                        TLS Encrypted Client Hello
@@ -35,7 +35,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 27 August 2021.
+   This Internet-Draft will expire on 28 August 2021.
 
 Copyright Notice
 
@@ -279,7 +279,7 @@ Table of Contents
 
 4.  Encrypted ClientHello Configuration
 
-   ECH uses draft-07 of HPKE for public key encryption
+   ECH uses draft-08 of HPKE for public key encryption
    [I-D.irtf-cfrg-hpke].  The ECH configuration is defined by the
    following "ECHConfig" structure.
 
@@ -311,7 +311,7 @@ Table of Contents
            uint16 version;
            uint16 length;
            select (ECHConfig.version) {
-             case 0xfe09: ECHConfigContents contents;
+             case 0xfe0a: ECHConfigContents contents;
            }
        } ECHConfig;
 
@@ -402,7 +402,7 @@ Table of Contents
    "encrypted_client_hello" extension, defined as follows:
 
        enum {
-          encrypted_client_hello(0xfe09), (65535)
+          encrypted_client_hello(0xfe0a), (65535)
        } ExtensionType;
 
    When offered by the client, the extension appears only in the
@@ -1645,7 +1645,7 @@ Table of Contents
    IANA is requested to create the following three entries in the
    existing registry for ExtensionType (defined in [RFC8446]):
 
-   1.  encrypted_client_hello(0xfe09), with "TLS 1.3" column values set
+   1.  encrypted_client_hello(0xfe0a), with "TLS 1.3" column values set
        to "CH, EE", and "Recommended" column set to "Yes".
 
    2.  ech_is_inner (0xda09), with "TLS 1.3" column values set to "CH",
