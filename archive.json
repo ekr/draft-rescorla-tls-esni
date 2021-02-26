@@ -1,6 +1,6 @@
 {
   "magic": "E!vIA5L86J2I",
-  "timestamp": "2021-02-24T15:19:37.982664+00:00",
+  "timestamp": "2021-02-26T16:05:26.462162+00:00",
   "repo": "tlswg/draft-ietf-tls-esni",
   "labels": [
     {
@@ -8930,7 +8930,7 @@
       "id": "MDU6SXNzdWU4MTI0Nzc5NDc=",
       "title": "Update to HPKE-08",
       "url": "https://github.com/tlswg/draft-ietf-tls-esni/issues/387",
-      "state": "OPEN",
+      "state": "CLOSED",
       "author": "chris-wood",
       "authorAssociation": "COLLABORATOR",
       "assignees": [
@@ -8941,8 +8941,8 @@
       ],
       "body": "This new version of the draft removes the version-vector dependency, so this should be the last time we update the pinned version.",
       "createdAt": "2021-02-20T01:45:52Z",
-      "updatedAt": "2021-02-23T01:34:47Z",
-      "closedAt": null,
+      "updatedAt": "2021-02-24T18:05:13Z",
+      "closedAt": "2021-02-24T18:05:13Z",
       "comments": []
     },
     {
@@ -36228,6 +36228,74 @@
           "body": "LGTM, though I guess we should either update it to resolve this other vector, or just make the PR not quite close the issue yet:\r\nhttps://github.com/tlswg/draft-ietf-tls-esni/issues/378#issuecomment-782763490\r\n\r\n(This other vector is even more fun because you can make a quadratically-*sized* ClientHello!)",
           "createdAt": "2021-02-22T19:53:05Z",
           "updatedAt": "2021-02-22T19:53:05Z",
+          "comments": []
+        }
+      ]
+    },
+    {
+      "number": 390,
+      "id": "MDExOlB1bGxSZXF1ZXN0NTc5Mzg0NjMw",
+      "title": "Update HPKE (and ECH) versions.",
+      "url": "https://github.com/tlswg/draft-ietf-tls-esni/pull/390",
+      "state": "MERGED",
+      "author": "chris-wood",
+      "authorAssociation": "COLLABORATOR",
+      "assignees": [],
+      "labels": [],
+      "body": "Closes #387, and also updates the ECH version. I didn't bump the extension codepoint for \"ech_is_inner,\" since that seems harmless. \r\n\r\ncc @davidben, @cjpatton ",
+      "createdAt": "2021-02-24T15:20:40Z",
+      "updatedAt": "2021-02-24T18:05:13Z",
+      "baseRepository": "tlswg/draft-ietf-tls-esni",
+      "baseRefName": "master",
+      "baseRefOid": "1aa4a2e222c77d1f29cb273ad71e7fcfe890ac53",
+      "headRepository": "tlswg/draft-ietf-tls-esni",
+      "headRefName": "caw/update-versions",
+      "headRefOid": "8aa95378e039d33b09316725a28a2e04878d63e9",
+      "closedAt": "2021-02-24T18:05:13Z",
+      "mergedAt": "2021-02-24T18:05:13Z",
+      "mergedBy": "ekr",
+      "mergeCommit": {
+        "oid": "fe714e011f8541d961b14d8090b0e1809056b36c"
+      },
+      "comments": [],
+      "reviews": [
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTk3Njg3OTQ4",
+          "commit": {
+            "abbreviatedOid": "8aa9537"
+          },
+          "author": "cbartle891",
+          "authorAssociation": "COLLABORATOR",
+          "state": "APPROVED",
+          "body": "",
+          "createdAt": "2021-02-24T16:39:36Z",
+          "updatedAt": "2021-02-24T16:39:36Z",
+          "comments": []
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTk3NzMzNDcx",
+          "commit": {
+            "abbreviatedOid": "8aa9537"
+          },
+          "author": "cjpatton",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "APPROVED",
+          "body": "Works for me!",
+          "createdAt": "2021-02-24T17:22:27Z",
+          "updatedAt": "2021-02-24T17:22:27Z",
+          "comments": []
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTk3Nzc0MDc0",
+          "commit": {
+            "abbreviatedOid": "8aa9537"
+          },
+          "author": "ekr",
+          "authorAssociation": "COLLABORATOR",
+          "state": "APPROVED",
+          "body": "",
+          "createdAt": "2021-02-24T18:04:57Z",
+          "updatedAt": "2021-02-24T18:04:57Z",
           "comments": []
         }
       ]
