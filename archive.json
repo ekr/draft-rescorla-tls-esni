@@ -1,6 +1,6 @@
 {
   "magic": "E!vIA5L86J2I",
-  "timestamp": "2021-02-26T16:05:26.462162+00:00",
+  "timestamp": "2021-03-02T22:30:33.297490+00:00",
   "repo": "tlswg/draft-ietf-tls-esni",
   "labels": [
     {
@@ -8968,15 +8968,15 @@
       "id": "MDU6SXNzdWU4MTQxNDU1MjM=",
       "title": "Public name rewriting",
       "url": "https://github.com/tlswg/draft-ietf-tls-esni/issues/389",
-      "state": "OPEN",
+      "state": "CLOSED",
       "author": "martinthomson",
       "authorAssociation": "CONTRIBUTOR",
       "assignees": [],
       "labels": [],
       "body": "Is there any sense in having the server validate the value of the server name indication extension in the outer ClientHello?  It seems like it might help avoid a trivial attack on DNS that might otherwise pass without notice or alarm.  That is, an attack that copies the DNS QNAME in the public_name field.  \r\n\r\nThere are various ways in which this might fail, but none of the scenarios that I can think of result in anything that a client or server might recognize as being alarming.\r\n\r\nIt is easy to detect and prevent this sort of interference: the client-facing server checks that the SNI matches the value it expects from the ECHConfig that has been selected.  If the config might have changed, such that multiple values are valid, then the server can allow for that, but generally there will be just one valid value.",
       "createdAt": "2021-02-23T06:08:09Z",
-      "updatedAt": "2021-02-23T15:13:14Z",
-      "closedAt": null,
+      "updatedAt": "2021-03-01T04:32:07Z",
+      "closedAt": "2021-03-01T04:32:07Z",
       "comments": [
         {
           "author": "sftcd",
@@ -8991,6 +8991,20 @@
           "body": "The entire ECHConfig is also bound into the decryption, so if the DNS is messing with ECHConfigs, you won't end up negotiating ECH. Copying the QNAME into the public name probably will successfully bounce ECH off via the recovery flow, but the DNS could just as easily have dropped the ECHConfig itself.",
           "createdAt": "2021-02-23T15:13:14Z",
           "updatedAt": "2021-02-23T15:13:14Z"
+        },
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "@martinthomson can you elaborate on the attack you had in mind? @davidben notes that the entire ECHConfig is now authenticated, so any disagreement between client and server will cause ECH negotiation failure. ",
+          "createdAt": "2021-02-27T02:37:38Z",
+          "updatedAt": "2021-02-27T02:37:38Z"
+        },
+        {
+          "author": "martinthomson",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "I should have responded earlier (thought I did...).  The fact that the configuration is covered prevents this from being a problem.  I missed that.",
+          "createdAt": "2021-03-01T04:32:07Z",
+          "updatedAt": "2021-03-01T04:32:07Z"
         }
       ]
     }
@@ -36296,6 +36310,196 @@
           "body": "",
           "createdAt": "2021-02-24T18:04:57Z",
           "updatedAt": "2021-02-24T18:04:57Z",
+          "comments": []
+        }
+      ]
+    },
+    {
+      "number": 391,
+      "id": "MDExOlB1bGxSZXF1ZXN0NTgwOTYzNTYz",
+      "title": "s/ECHConfigs/ECHConfigList, for clarity.",
+      "url": "https://github.com/tlswg/draft-ietf-tls-esni/pull/391",
+      "state": "MERGED",
+      "author": "chris-wood",
+      "authorAssociation": "COLLABORATOR",
+      "assignees": [],
+      "labels": [],
+      "body": "See [the source of confusion](https://github.com/MikeBishop/dns-alt-svc/issues/298).",
+      "createdAt": "2021-02-26T16:06:00Z",
+      "updatedAt": "2021-03-02T22:30:10Z",
+      "baseRepository": "tlswg/draft-ietf-tls-esni",
+      "baseRefName": "master",
+      "baseRefOid": "fe714e011f8541d961b14d8090b0e1809056b36c",
+      "headRepository": "tlswg/draft-ietf-tls-esni",
+      "headRefName": "caw/s-to-list",
+      "headRefOid": "3e2595417121a57545daf6151040b00340bac4cd",
+      "closedAt": "2021-03-02T22:30:09Z",
+      "mergedAt": "2021-03-02T22:30:09Z",
+      "mergedBy": "chris-wood",
+      "mergeCommit": {
+        "oid": "d5113cc41f9f2c52e327ae2b9ab97dfbf04cfaf9"
+      },
+      "comments": [
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "> I figure the precision might help reenforce the path from published structure to client behavior.\r\n\r\nI left this out because I figure there may be cases where there is no \"published\" ECHConfigList. (Maybe the config is baked in the app?)",
+          "createdAt": "2021-02-26T16:26:54Z",
+          "updatedAt": "2021-02-26T16:26:54Z"
+        },
+        {
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "Ah fair, that might be too precise. I think it still makes sense for that case to have the baked-in thing be an ECHConfigList than an ECHConfig, just for consistency. (I'm envisioning that ECHConfigList is the \"public API\" for client ECH and your TLS library might just that one byte string as input.)\r\n\r\nHow about s/published/server's/?",
+          "createdAt": "2021-02-26T16:34:07Z",
+          "updatedAt": "2021-02-26T16:34:07Z"
+        },
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "> How about s/published/server's/?\r\n\r\nThat'd work :)",
+          "createdAt": "2021-02-26T16:45:13Z",
+          "updatedAt": "2021-02-26T16:45:13Z"
+        },
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "@davidben done!",
+          "createdAt": "2021-02-26T16:50:42Z",
+          "updatedAt": "2021-02-26T16:50:42Z"
+        }
+      ],
+      "reviews": [
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTk5NzI1NzYy",
+          "commit": {
+            "abbreviatedOid": "ccf349e"
+          },
+          "author": "dmcardle",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-26T16:14:07Z",
+          "updatedAt": "2021-02-26T16:14:07Z",
+          "comments": [
+            {
+              "originalPosition": 32,
+              "body": "Would it be possible to keep the \"set of candidate $X\" phrasing?\r\n\r\nThe phrase \"candidate ECHConfigList\" sounds to me like the whole ECHConfigList is a candidate, not that each element is a candidate. \r\n\r\nPerhaps\r\n\r\n> First, the server collects a set of candidate ECHConfig values.",
+              "createdAt": "2021-02-26T16:14:07Z",
+              "updatedAt": "2021-02-26T16:50:36Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTk5NzI4ODc3",
+          "commit": {
+            "abbreviatedOid": "ccf349e"
+          },
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-26T16:17:32Z",
+          "updatedAt": "2021-02-26T16:17:32Z",
+          "comments": [
+            {
+              "originalPosition": 34,
+              "body": "I think this section should just be \"ECHConfigs\" or \"ECHConfig values\". The server doesn't actually need to serialize them or anything. (Edit: Ah, I see Dan and I crossed mid-air!)\r\n\r\nAlso now that we also have a better word, maybe {{real-ech}} should now be a bit more precise and say something like:\r\n\"To offer ECH, the client first chooses a suitable ECHConfig from the published ECHConfigList.\"",
+              "createdAt": "2021-02-26T16:17:32Z",
+              "updatedAt": "2021-02-26T16:50:36Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTk5NzMwMTQz",
+          "commit": {
+            "abbreviatedOid": "ccf349e"
+          },
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-26T16:18:54Z",
+          "updatedAt": "2021-02-26T16:18:55Z",
+          "comments": [
+            {
+              "originalPosition": 32,
+              "body": "Sure, that works equally well for me!",
+              "createdAt": "2021-02-26T16:18:55Z",
+              "updatedAt": "2021-02-26T16:50:36Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTk5NzMwNDMy",
+          "commit": {
+            "abbreviatedOid": "4652d8e"
+          },
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "state": "COMMENTED",
+          "body": "",
+          "createdAt": "2021-02-26T16:19:14Z",
+          "updatedAt": "2021-02-26T16:19:14Z",
+          "comments": [
+            {
+              "originalPosition": 34,
+              "body": "(See latest change)",
+              "createdAt": "2021-02-26T16:19:14Z",
+              "updatedAt": "2021-02-26T16:50:36Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTk5NzM1MTg5",
+          "commit": {
+            "abbreviatedOid": "4652d8e"
+          },
+          "author": "dmcardle",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "APPROVED",
+          "body": "Thanks, Chris!",
+          "createdAt": "2021-02-26T16:24:34Z",
+          "updatedAt": "2021-02-26T16:24:34Z",
+          "comments": []
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTk5NzM1NDI4",
+          "commit": {
+            "abbreviatedOid": "4652d8e"
+          },
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "APPROVED",
+          "body": "LGTM with one comment that got lost in the mixup. Now that we also have a better word, maybe {{real-ech}} should now be a bit more precise and say something like:\r\n\r\n> To offer ECH, the client first chooses a suitable ECHConfig from the published ECHConfigList.\r\n\r\nI figure the precision might help reenforce the path from published structure to client behavior.",
+          "createdAt": "2021-02-26T16:24:49Z",
+          "updatedAt": "2021-02-26T16:24:49Z",
+          "comments": []
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTk5ODM2ODU3",
+          "commit": {
+            "abbreviatedOid": "3e25954"
+          },
+          "author": "cbartle891",
+          "authorAssociation": "COLLABORATOR",
+          "state": "APPROVED",
+          "body": "",
+          "createdAt": "2021-02-26T18:30:40Z",
+          "updatedAt": "2021-02-26T18:30:40Z",
+          "comments": []
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTk5ODYxMDgx",
+          "commit": {
+            "abbreviatedOid": "3e25954"
+          },
+          "author": "davidben",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "APPROVED",
+          "body": "LGTM",
+          "createdAt": "2021-02-26T19:04:23Z",
+          "updatedAt": "2021-02-26T19:04:23Z",
           "comments": []
         }
       ]
