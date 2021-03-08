@@ -1,6 +1,6 @@
 {
   "magic": "E!vIA5L86J2I",
-  "timestamp": "2021-03-02T22:30:33.297490+00:00",
+  "timestamp": "2021-03-08T18:55:27.451499+00:00",
   "repo": "tlswg/draft-ietf-tls-esni",
   "labels": [
     {
@@ -8641,7 +8641,7 @@
       "labels": [],
       "body": "A naive implementation of decoding the inner ClientHello can easily go quadratic when processing outer_extensions. Thus far, nothing in TLS has required searching for O(N) extensions, only O(implemented extensions). It's likely a lot of TLS implementations handle the extensions list linearly most of the time.\r\n\r\nouter_extensions is now the first time you have to search for extensions you may not have implemented. A naive implementation would then go quadratic, which is a server DoS risk. It doesn't need to go quadratic (for instance, you can sort ClientHelloOuter's extensions and then binary search per lookup), but it's probably worth at least calling this out, if not switching to a simpler decoding scheme.\r\n\r\n(For a simpler decoder, we already require CHInner group the compressed extensions consecutively. We could do the same with CHOuter, at which point we only need to reference one byte slice, be it by offset/length or some goofier scheme.)",
       "createdAt": "2021-02-05T23:33:28Z",
-      "updatedAt": "2021-02-23T01:44:33Z",
+      "updatedAt": "2021-03-08T16:51:11Z",
       "closedAt": null,
       "comments": [
         {
@@ -8713,6 +8713,13 @@
           "body": "Keeping this opening to track @davidben's and @sftcd's comments on CH sizes. @sftcd, could you please send a PR if you have cycles?",
           "createdAt": "2021-02-23T01:37:42Z",
           "updatedAt": "2021-02-23T01:44:33Z"
+        },
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "Discussed in 110: Will propose text to address the second vector and then close this issue.",
+          "createdAt": "2021-03-08T16:51:11Z",
+          "updatedAt": "2021-03-08T16:51:11Z"
         }
       ]
     },
@@ -8728,7 +8735,7 @@
       "labels": [],
       "body": "Assuming #376 lands, we need to decide how long we want this server-chosen identifier to be. There are various operational and privacy considerations at play. For example, shorter identifiers mean that GREASE clients may produce colliding values with higher probability, and the cost of trial decryption on the server may be an overly expensive operational cost for some deployments. Longer identifiers may also mean that using keys as a tracking vector is easier. (But as @ekr has pointed out, ECH does not assume DNS answer integrity, so there are other tracking mechanisms at play.) Let's use this issue to sort out this question. \r\n\r\ncc @davidben, @cjpatton, @martinthomson ",
       "createdAt": "2021-02-08T22:27:58Z",
-      "updatedAt": "2021-02-20T01:42:42Z",
+      "updatedAt": "2021-03-08T16:40:02Z",
       "closedAt": null,
       "comments": [
         {
@@ -8800,6 +8807,20 @@
           "body": "Works for me!",
           "createdAt": "2021-02-10T16:36:04Z",
           "updatedAt": "2021-02-10T16:36:04Z"
+        },
+        {
+          "author": "enygren",
+          "authorAssociation": "NONE",
+          "body": "Can we use an arbitrary length, up to some length, but with a recommendation to use one byte where possible?  There are a number of deployment environments where it may be preferable to use longer config_ids (eg, using a 8-byte config_id would allow for using a hash of a public key as the config_id without needing to do trial-decryption or demuxing).  Server operators who want to abuse this could just not enable ECH or could use a large number of IP addresses.",
+          "createdAt": "2021-03-08T16:31:20Z",
+          "updatedAt": "2021-03-08T16:31:20Z"
+        },
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "Discussed in 110: Poll suggested most folks were in favor of 1 byte. We'll move ahead with this plan.",
+          "createdAt": "2021-03-08T16:39:39Z",
+          "updatedAt": "2021-03-08T16:40:02Z"
         }
       ]
     },
@@ -8862,7 +8883,7 @@
       "labels": [],
       "body": "As discussed in #354, there are two real-ECH/grease-ECH differentiators related to the PSK extension we may wish to address.\r\n\r\n1. Real ECH disallows the PSK extension in ClientHelloOuter, whereas grease ECH permits PSK in ClientHello.\r\n2. Real ECH allows PSK in ClientHelloInner. In case of acceptance, the backend server may respond with PSK in ServerHello. The response would appear to be unsolicited. something that would not happen in a grease-ECH or vanilla handshake.\r\n\r\nThe question we will ask ourselves here is if/how to mitigate these differentiators. We might simply say that clients MAY (or SHOULD?) send a dummy PSK in the ClientHello(Outer). This ought to provide sufficient cover.",
       "createdAt": "2021-02-18T19:38:54Z",
-      "updatedAt": "2021-02-23T01:34:54Z",
+      "updatedAt": "2021-03-08T16:24:27Z",
       "closedAt": null,
       "comments": [
         {
@@ -8906,6 +8927,13 @@
           "body": "> Making that in scope sounds exceedingly difficult. \r\n\r\nYep, no argument there. ",
           "createdAt": "2021-02-22T23:27:35Z",
           "updatedAt": "2021-02-22T23:27:35Z"
+        },
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "Discussed in 110: Will submit a PR that says \"clients MAY send a dummy PSK if the inner CH uses a PSK.\" ",
+          "createdAt": "2021-03-08T16:24:27Z",
+          "updatedAt": "2021-03-08T16:24:27Z"
         }
       ]
     },
@@ -8914,16 +8942,24 @@
       "id": "MDU6SXNzdWU4MTI0NzQ2NjQ=",
       "title": "Fixed-length values should probably be fixed-length",
       "url": "https://github.com/tlswg/draft-ietf-tls-esni/issues/386",
-      "state": "OPEN",
+      "state": "CLOSED",
       "author": "chris-wood",
       "authorAssociation": "COLLABORATOR",
       "assignees": [],
       "labels": [],
       "body": "In the `ECHConfigContents` struct, we have the following:\r\n\r\n```\r\n    opaque HpkePublicKey<1..2^16-1>;\r\n    ...\r\n\r\n    struct {\r\n        ...\r\n        HpkeKemId kem_id;\r\n        HpkePublicKey public_key;\r\n        ...\r\n    } HpkeKeyConfig;\r\n```\r\n\r\n`HpkeKeyConfig.public_key` is a serialized HPKE public key. However, these keys have a fixed length (`Npk`). We can remove the length prefix around this value and simple define `HpkePublicKey` like so:\r\n\r\n```\r\nopaque HpkePublicKey[Npk];\r\n```\r\n\r\nParsing shouldn't be an issue, since consuming clients first parse the `HpkeKeyConfig.kem_id`. If this corresponds to an unknown KEM, they can't use the `HpkeKeyConfig` or parent `ECHConfigContents`, and can move onto the next `ECHConfig` in the list to check. \r\n\r\nWe may also do this for `ClientECH`, which length-prefixes the `enc` field (of fixed length `Nenc`), but that might complicate  trial decryption use cases. \r\n\r\nNote that [KeyShareEntry keys](https://tools.ietf.org/html/rfc8446#section-4.2.8) are length-prefixed, but I don't think we need to follow that guidance here. HPKE exposed fixed-length keys for a reason. :-) \r\n\r\ncc @martinthomson ",
       "createdAt": "2021-02-20T01:30:11Z",
-      "updatedAt": "2021-02-20T01:30:11Z",
-      "closedAt": null,
-      "comments": []
+      "updatedAt": "2021-03-08T16:45:45Z",
+      "closedAt": "2021-03-08T16:45:45Z",
+      "comments": [
+        {
+          "author": "chris-wood",
+          "authorAssociation": "COLLABORATOR",
+          "body": "Discussed in 110: Makes general purpose parsers more difficult. Closing as a result.",
+          "createdAt": "2021-03-08T16:45:45Z",
+          "updatedAt": "2021-03-08T16:45:45Z"
+        }
+      ]
     },
     {
       "number": 387,
@@ -8950,7 +8986,7 @@
       "id": "MDU6SXNzdWU4MTQwMDMyMDg=",
       "title": "Include changelog going forward",
       "url": "https://github.com/tlswg/draft-ietf-tls-esni/issues/388",
-      "state": "OPEN",
+      "state": "CLOSED",
       "author": "chris-wood",
       "authorAssociation": "COLLABORATOR",
       "assignees": [
@@ -8959,8 +8995,8 @@
       "labels": [],
       "body": "Since -09 is the first \"official\" interop target, we should make it easy going forward to track deltas between versions. Let's add a changelog for each revision of the draft to help implementers out.",
       "createdAt": "2021-02-23T01:09:13Z",
-      "updatedAt": "2021-02-23T01:10:49Z",
-      "closedAt": null,
+      "updatedAt": "2021-03-08T18:54:58Z",
+      "closedAt": "2021-03-08T18:54:58Z",
       "comments": []
     },
     {
@@ -35672,7 +35708,7 @@
       "labels": [],
       "body": "Closes #379.\r\n\r\ncc @davidben, @martinthomson, @cjpatton, @cbartle891, @ekr ",
       "createdAt": "2021-02-15T19:28:35Z",
-      "updatedAt": "2021-02-16T21:04:40Z",
+      "updatedAt": "2021-03-08T16:47:16Z",
       "baseRepository": "tlswg/draft-ietf-tls-esni",
       "baseRefName": "caw/config_id-to-key_id",
       "baseRefOid": "ce8a04539acf0655a87ed57aa422c795aa8c6fd6",
@@ -35683,7 +35719,15 @@
       "mergedAt": null,
       "mergedBy": null,
       "mergeCommit": null,
-      "comments": [],
+      "comments": [
+        {
+          "author": "ekr",
+          "authorAssociation": "COLLABORATOR",
+          "body": "LGTM based on the discussion.",
+          "createdAt": "2021-03-08T16:46:51Z",
+          "updatedAt": "2021-03-08T16:46:51Z"
+        }
+      ],
       "reviews": [
         {
           "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NTkwNzUxNDA3",
@@ -35770,6 +35814,19 @@
           "createdAt": "2021-02-16T21:04:40Z",
           "updatedAt": "2021-02-16T21:04:40Z",
           "comments": []
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NjA2NDkxNzUz",
+          "commit": {
+            "abbreviatedOid": "85db0c0"
+          },
+          "author": "ekr",
+          "authorAssociation": "COLLABORATOR",
+          "state": "APPROVED",
+          "body": "",
+          "createdAt": "2021-03-08T16:47:16Z",
+          "updatedAt": "2021-03-08T16:47:16Z",
+          "comments": []
         }
       ]
     },
@@ -35785,7 +35842,7 @@
       "labels": [],
       "body": "This PR aims to resolve the discussion in issue #354 by:\r\n\r\n1. clarifying goals/non-goals for \"don't stick out\"; and\r\n2. creating a TODO for a future experiment that assesses the deployability of the GREASE extension.\r\n\r\nDealing with PSK sticking out has been assigned to #384.",
       "createdAt": "2021-02-15T21:35:45Z",
-      "updatedAt": "2021-02-18T20:00:23Z",
+      "updatedAt": "2021-03-05T19:10:48Z",
       "baseRepository": "tlswg/draft-ietf-tls-esni",
       "baseRefName": "master",
       "baseRefOid": "c1a3d71f20f6fa69da00fa5ee7fa1a11abc291de",
@@ -35985,6 +36042,50 @@
               "body": "Cited references in Section D.4 of RFC 8446.",
               "createdAt": "2021-02-18T20:00:23Z",
               "updatedAt": "2021-02-18T20:00:23Z"
+            }
+          ]
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NjA1NTA4Mzcx",
+          "commit": {
+            "abbreviatedOid": "30e22a2"
+          },
+          "author": "ekr",
+          "authorAssociation": "COLLABORATOR",
+          "state": "CHANGES_REQUESTED",
+          "body": "Hi @cjpatton I think this needs to be trimmed down substantially. In particular, a lot of the sections about formally defining indifferentiability don't really belong here.\r\n\r\nIn addition, I wouldn't frame GREASE as an experimental method. It's a permanent feature.",
+          "createdAt": "2021-03-05T18:50:06Z",
+          "updatedAt": "2021-03-05T18:56:58Z",
+          "comments": [
+            {
+              "originalPosition": 84,
+              "body": "```suggestion\r\n({{real-ech}}) without protecting the client hello.\r\n```",
+              "createdAt": "2021-03-05T18:50:06Z",
+              "updatedAt": "2021-03-05T18:56:58Z"
+            },
+            {
+              "originalPosition": 87,
+              "body": "I'm not sure I think of this so much as a measurement thing but rather as an anti-ossification measure.",
+              "createdAt": "2021-03-05T18:50:31Z",
+              "updatedAt": "2021-03-05T18:56:58Z"
+            },
+            {
+              "originalPosition": 113,
+              "body": "I would remove everything between \"This strategy is...\" and here.",
+              "createdAt": "2021-03-05T18:52:33Z",
+              "updatedAt": "2021-03-05T18:56:58Z"
+            },
+            {
+              "originalPosition": 92,
+              "body": "```suggestion\r\nossification is to make the use of GREASE ECH widespread, thus disincentivizing filtering of the ECH extension by passive attackers.\r\n```",
+              "createdAt": "2021-03-05T18:53:53Z",
+              "updatedAt": "2021-03-05T18:56:58Z"
+            },
+            {
+              "originalPosition": 123,
+              "body": "I would also remove this paragraph.",
+              "createdAt": "2021-03-05T18:54:27Z",
+              "updatedAt": "2021-03-05T18:56:59Z"
             }
           ]
         }
@@ -36503,6 +36604,87 @@
           "comments": []
         }
       ]
+    },
+    {
+      "number": 392,
+      "id": "MDExOlB1bGxSZXF1ZXN0NTgzMzk1MTQ0",
+      "title": "Add -09 to -10 change log.",
+      "url": "https://github.com/tlswg/draft-ietf-tls-esni/pull/392",
+      "state": "MERGED",
+      "author": "chris-wood",
+      "authorAssociation": "COLLABORATOR",
+      "assignees": [],
+      "labels": [],
+      "body": "Closes #388. We'll keep this updated moving forward.\r\n\r\ncc @martinthomson, @davidben, @cjpatton ",
+      "createdAt": "2021-03-02T22:45:57Z",
+      "updatedAt": "2021-03-08T18:54:58Z",
+      "baseRepository": "tlswg/draft-ietf-tls-esni",
+      "baseRefName": "master",
+      "baseRefOid": "d5113cc41f9f2c52e327ae2b9ab97dfbf04cfaf9",
+      "headRepository": "tlswg/draft-ietf-tls-esni",
+      "headRefName": "caw/change-log",
+      "headRefOid": "da6859a0ba7063def5bf77301a1f014cd0f05003",
+      "closedAt": "2021-03-08T18:54:58Z",
+      "mergedAt": "2021-03-08T18:54:58Z",
+      "mergedBy": "chris-wood",
+      "mergeCommit": {
+        "oid": "db33d117910bc62026b9efc2eb6fe01254b87cba"
+      },
+      "comments": [],
+      "reviews": [
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NjAyMzcwNDAw",
+          "commit": {
+            "abbreviatedOid": "da6859a"
+          },
+          "author": "cbartle891",
+          "authorAssociation": "COLLABORATOR",
+          "state": "APPROVED",
+          "body": "",
+          "createdAt": "2021-03-02T23:32:04Z",
+          "updatedAt": "2021-03-02T23:32:04Z",
+          "comments": []
+        },
+        {
+          "id": "MDE3OlB1bGxSZXF1ZXN0UmV2aWV3NjAyMzc2MzI4",
+          "commit": {
+            "abbreviatedOid": "da6859a"
+          },
+          "author": "martinthomson",
+          "authorAssociation": "CONTRIBUTOR",
+          "state": "APPROVED",
+          "body": "",
+          "createdAt": "2021-03-02T23:43:56Z",
+          "updatedAt": "2021-03-02T23:43:56Z",
+          "comments": []
+        }
+      ]
+    },
+    {
+      "number": 393,
+      "id": "MDExOlB1bGxSZXF1ZXN0NTg1ODA1MDkw",
+      "title": "Define HelloRetryRequestInner/Outer messages",
+      "url": "https://github.com/tlswg/draft-ietf-tls-esni/pull/393",
+      "state": "CLOSED",
+      "author": "cjpatton",
+      "authorAssociation": "CONTRIBUTOR",
+      "assignees": [],
+      "labels": [],
+      "body": "",
+      "createdAt": "2021-03-05T18:43:35Z",
+      "updatedAt": "2021-03-05T18:43:42Z",
+      "baseRepository": "tlswg/draft-ietf-tls-esni",
+      "baseRefName": "master",
+      "baseRefOid": "d5113cc41f9f2c52e327ae2b9ab97dfbf04cfaf9",
+      "headRepository": "cjpatton/draft-ietf-tls-esni",
+      "headRefName": "hrr-inner",
+      "headRefOid": "bcb679661d6a96aeddc45391e43c133c3507b3a6",
+      "closedAt": "2021-03-05T18:43:42Z",
+      "mergedAt": null,
+      "mergedBy": null,
+      "mergeCommit": null,
+      "comments": [],
+      "reviews": []
     }
   ]
 }
